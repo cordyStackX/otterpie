@@ -1,0 +1,20 @@
+{
+    "title" : "OtterPie - one scan, sliced three ways. Automatic payment splitting for sari-sari stores, built on Stellar.",
+    "description" : "Sari-sari store owners juggle supplier payments, daily income, and savings by hand, usually in cash. Otterpie fixes that with one QR code: when a customer pays, the payment is automatically split between the supplier’s share, the store’s income, and a savings pool, all in a single Stellar transaction.",
+    "domain__links": "",
+    "openGraph": "",
+    "wallet__connect_PRID": {
+        "Wallet__Connect": "",
+        "Based__Sepolia": "",
+        "Stellar" : ""
+    },
+    "links__src" : {
+        "Social__links" : {
+            "linked_in" : "https://www.linkedin.com/in/marc-giestin-louis-cordova-657849276",
+            "github" : "https://github.com/cordyStackX",
+            "facebook" : "https://www.facebook.com/cordyStackX/",
+            "twitter" : "https://x.com/cordyStackX",
+            "tiktok" : "https://www.tiktok.com/@cordystackx"
+        }
+    }
+}
