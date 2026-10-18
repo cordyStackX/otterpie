@@ -132,6 +132,7 @@ export default [
       "**/.venv/**",
       "**/python/**",
       "**/mobile/**",
+      "supabase-project/**",
     ],
   },
 ];

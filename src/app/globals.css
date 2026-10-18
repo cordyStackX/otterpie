@@ -1,6 +1,14 @@
 @import "tailwindcss";
-
-@import url("../config/css/var.css");
+@import "../config/css/var.css";
+@source not "../../supabase-project";
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary-hex);
+  --color-secondary: var(--secondary-hex);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
 
 body {
   background: var(--background);
