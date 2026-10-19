@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseServer } from "@/lib";
+import { supabaseServer, createStellarWallet, createBotChainWallet } from "@/lib";
 import bcrypt from "bcrypt";
-import { rateLimit } from "@/firewall";
+import { rateLimit, encryptText } from "@/firewall";
 
 export async function POST(params: NextRequest) {
 
@@ -14,11 +14,11 @@ export async function POST(params: NextRequest) {
       );
   }
   
-  const { storeName, email, password } = await params.json();
+  const { storeName, email, password, network } = await params.json();
 
   try {
     
-    if (!storeName || !email || !password) return NextResponse.json({ success: false, error: "Invalid Credentials" }, { status: 400 });
+    if (!storeName || !email || !password || !network) return NextResponse.json({ success: false, error: "Invalid Credentials" }, { status: 400 });
 
     const { error } = await supabaseServer
     .from("tbl_auth")
@@ -29,8 +29,38 @@ export async function POST(params: NextRequest) {
     }]);
 
     if (error) {
+      if (error.code === "23505") {
+          return NextResponse.json({ success: false, error: "That email is already registered" }, { status: 409 });
+      }
       console.error("Supabase Query Error: ", error);
-      return NextResponse.json({ success: false, error: error.details }, { status: 500 });
+      return NextResponse.json({ success: false, error: "Something went wrong" }, { status: 500 });
+    }
+
+    let wallet: {
+      walletAddress: string;
+      secretKey: string;
+    };
+
+    if (network === "stellar") {
+        wallet = createStellarWallet();
+    } else if (network === "bot_chain") {
+        wallet = createBotChainWallet();
+    } else {
+        throw new Error("Unsupported network");
+    }
+
+    const { error: WalletErr } = await supabaseServer
+    .from("tbl_wallet")
+    .insert([{ 
+      wallet_address: wallet.walletAddress,
+      secret_key: encryptText(wallet.secretKey, process.env.WALLET_BANK_KEY || ""),
+      email: email,
+      network: network
+    }]);
+
+    if (WalletErr) {
+      console.error("Supabase Query Error: ", WalletErr);
+      return NextResponse.json({ success: false, error: WalletErr.details }, { status: 500 });
     }
 
     return NextResponse.json({ success: true }, { status: 200 });

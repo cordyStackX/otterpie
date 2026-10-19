@@ -1,7 +1,7 @@
 "use client";
 import { Fetch_to } from "@/utilities";
 import { useState, FormEvent } from "react";
-import { Button, Logo, TextField, ReceiptCard, Checkbox } from "@/components/ui";
+import { Button, Logo, TextField, ReceiptCard, Checkbox, Select } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import routes from "@/routes/auth.json"; 
 
@@ -12,6 +12,7 @@ export default function SignupForm() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [agreed, setAgreed] = useState(false);
+  const [network, setNetwork] = useState("stellar");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -32,7 +33,8 @@ export default function SignupForm() {
       const response = await Fetch_to("POST", routes.singup, {
         storeName: storeName,
         email: email,
-        password: confirmPassword
+        password: confirmPassword,
+        network: network
       },);
 
       if (response.success) {
@@ -97,6 +99,17 @@ export default function SignupForm() {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder=""
+          />
+          <Select
+            id="network"
+            label="Wallet network"
+            required
+            value={network}
+            onChange={(e) => setNetwork(e.target.value)}
+            options={[
+              { value: "stellar", label: "Stellar" },
+              { value: "bot_chain", label: "Bot Chain" },
+            ]}
           />
 
           {error && <p className="text-sm text-red-600">{error}</p>}
