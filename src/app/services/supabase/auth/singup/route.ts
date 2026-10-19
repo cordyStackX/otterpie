@@ -14,18 +14,19 @@ export async function POST(params: NextRequest) {
       );
   }
   
-  const { storeName, email, password, network } = await params.json();
+  const { storeName, email, password, network, username } = await params.json();
 
   try {
     
-    if (!storeName || !email || !password || !network) return NextResponse.json({ success: false, error: "Invalid Credentials" }, { status: 400 });
+    if (!storeName || !email || !password || !network || !username) return NextResponse.json({ success: false, error: "Invalid Credentials" }, { status: 400 });
 
     const { error } = await supabaseServer
     .from("tbl_auth")
     .insert([{ 
       email: email.toLowerCase(),
       password: String(await bcrypt.hash(password, 10)),
-      storeName: storeName.toLowerCase()
+      storeName: storeName.toLowerCase(),
+      username: username.toLowerCase()
     }]);
 
     if (error) {
@@ -66,8 +67,8 @@ export async function POST(params: NextRequest) {
     return NextResponse.json({ success: true }, { status: 200 });
 
   } catch (e) {
-    NextResponse.json({ success: false, message: "Something Went to Servers" }, { status: 500 });
     console.error(e);
+    return NextResponse.json({ success: false, message: "Something Went to Servers" }, { status: 500 });
   }
 
 }

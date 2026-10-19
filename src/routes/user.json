@@ -1,0 +1,7 @@
+{
+  "stellar_balance" : "/services/supabase/user/stellar_balance",
+  "bot_chain_balance" : "/services/supabase/user/bot_chain_balance",
+  "stellar_transactions" : "/services/supabase/user/stellar_transactions",
+  "bot_chain_transactions" : "/services/supabase/user/bot_chain_transactions",
+  "categories" : "/services/supabase/user/categories"
+}

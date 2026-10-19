@@ -1,0 +1,4 @@
+{
+  "verify" : "/services/jwt/verify",
+  "deauth" : "/services/jwt/deauth"
+}

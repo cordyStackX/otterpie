@@ -8,6 +8,7 @@ import routes from "@/routes/auth.json";
 export default function SignupForm() {
   const router = useRouter();
   const [storeName, setStoreName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -34,7 +35,8 @@ export default function SignupForm() {
         storeName: storeName,
         email: email,
         password: confirmPassword,
-        network: network
+        network: network,
+        username: username
       },);
 
       if (response.success) {
@@ -81,6 +83,15 @@ export default function SignupForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@tindahan.com"
+          />
+          <TextField
+            id="username"
+            label="Username"
+            type="text"
+            required
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="username"
           />
           <TextField
             id="password"

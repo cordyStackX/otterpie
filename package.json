@@ -20,7 +20,8 @@
     "jsonwebtoken": "^9.0.3",
     "next": "16.4.2",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",

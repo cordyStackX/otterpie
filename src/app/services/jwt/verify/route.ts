@@ -11,7 +11,7 @@ type TokenPayload = {
   [key: string]: unknown;
 };
 
-export async function POST(req: NextRequest) {
+export async function GET(req: NextRequest) {
   const auth = req.headers.get("authorization") || "";
   const bearer = auth.startsWith("Bearer ") ? auth.slice(7) : null;
   const cookieToken = (await cookies()).get("token")?.value;

@@ -29,7 +29,7 @@ export default function LoginForm() {
       });
 
       if (response.success) {
-        router.push("/home");
+        router.push("/user");
       } else {
         return setError(response.message);
       }
