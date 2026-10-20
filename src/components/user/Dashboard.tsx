@@ -145,17 +145,28 @@ type Category = { id: string; name: string; amount: number };
 type Slice = { name: string; amount: number };
 
 // Sales = money received by the wallet (incoming payments), in the network's coin
-type Incoming = { date: string; amount: number };
+type Incoming = {
+  date: string;
+  amount: number;
+  direction?: "received" | "sent";
+  status?: "Completed" | "Failed";
+};
 
 // Both transaction routes return [{ date, amount, asset, ... }]; keep only the
 // network's own coin so the chart is in one unit.
 const toIncoming = (
-  txs: { date: string; amount: string; asset: string }[],
+  txs: {
+    date: string;
+    amount: string;
+    asset: string;
+    direction?: "received" | "sent";
+    status?: "Completed" | "Failed";
+  }[],
   symbol: string
 ): Incoming[] =>
   txs
-    .filter((t) => t.asset === symbol)
-    .map((t) => ({ date: t.date, amount: parseFloat(t.amount) }))
+    .filter((t) => t.asset === symbol && t.direction !== "sent" && t.status !== "Failed")
+    .map((t) => ({ date: t.date, amount: parseFloat(t.amount), direction: t.direction, status: t.status }))
     .filter((t) => Number.isFinite(t.amount));
 
 // Groups incoming payments into 7 daily or 12 monthly buckets (local time)
@@ -173,7 +184,11 @@ function buildSales(incoming: Incoming[], range: Range) {
       const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
       buckets.push({
         key: dayKey(d),
-        label: d.toLocaleDateString("en-US", { weekday: "short" }),
+        label: d.toLocaleDateString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        }),
         amount: 0,
       });
     }
@@ -182,7 +197,7 @@ function buildSales(incoming: Incoming[], range: Range) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       buckets.push({
         key: monthKey(d),
-        label: d.toLocaleDateString("en-US", { month: "short" }),
+        label: d.toLocaleDateString("en-US", { month: "short", year: "numeric" }),
         amount: 0,
       });
     }
@@ -563,7 +578,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
   }, [email, network]);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       {/* Page header */}
       <header>
         <h1 className="text-xl font-semibold tracking-tight text-foreground">

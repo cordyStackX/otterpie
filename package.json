@@ -19,6 +19,7 @@
     "ethers": "^6.17.0",
     "jsonwebtoken": "^9.0.3",
     "next": "16.4.2",
+    "qrcode": "^1.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "recharts": "^3.10.1"

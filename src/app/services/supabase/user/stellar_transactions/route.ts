@@ -20,7 +20,10 @@ type Incoming = {
   amount: string;
   asset: string; // "XLM" or the asset code
   from: string | null;
+  to: string | null;
+  direction: "received" | "sent";
   type: string;
+  status: "Completed";
 };
 
 export async function POST(params: NextRequest) {
@@ -80,25 +83,31 @@ export async function POST(params: NextRequest) {
             amount: r.starting_balance,
             asset: "XLM",
             from: r.funder ?? null,
+            to: address,
+            direction: "received",
             type: r.type,
+            status: "Completed",
           });
           continue;
         }
 
-        // Money received (plain payment or path payment) — not money sent out
+        // Payments to or from this wallet (plain payment or path payment).
         const isPayment =
           r.type === "payment" ||
           r.type === "path_payment_strict_send" ||
           r.type === "path_payment_strict_receive";
 
-        if (isPayment && r.to === address) {
+        if (isPayment && (r.to === address || r.from === address)) {
           transactions.push({
             id: r.id,
             date: r.created_at,
             amount: r.amount,
             asset: r.asset_type === "native" ? "XLM" : r.asset_code,
             from: r.from ?? null,
+            to: r.to ?? null,
+            direction: r.to === address ? "received" : "sent",
             type: r.type,
+            status: "Completed",
           });
         }
       }

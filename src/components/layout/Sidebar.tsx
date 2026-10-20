@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fetch_to } from "@/utilities";
 import routes from "@/routes/jwt.json";
+import QRCode from "qrcode";
 
 type IconProps = { className?: string };
 
@@ -82,17 +83,26 @@ const navItems = [
 type SidebarProps = {
   userName?: string;
   userEmail?: string;
+  storeName?: string;
+  wallet_address?: string;
+  network?: string;
   onLogout?: () => void;
 };
 
 export default function Sidebar({
   userName = "Your account",
   userEmail,
+  storeName,
+  wallet_address,
+  network,
   onLogout,
 }: SidebarProps) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [copiedAddress, setCopiedAddress] = useState(false);
+  const [walletQrCode, setWalletQrCode] = useState("");
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   // Close the mobile menu on navigation
@@ -121,6 +131,32 @@ export default function Sidebar({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isConfirmOpen]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setWalletQrCode("");
+    if (!wallet_address) {
+      return;
+    }
+
+    const qrPayload = network === "bot_chain"
+      ? `ethereum:${wallet_address}@677`
+      : wallet_address;
+
+    QRCode.toDataURL(qrPayload, {
+      width: 320,
+      margin: 2,
+      errorCorrectionLevel: "M",
+    }).then((url) => {
+      if (!cancelled) setWalletQrCode(url);
+    }).catch(() => {
+      if (!cancelled) setWalletQrCode("");
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [wallet_address, network]);
+
   const handleConfirmLogout = async() => {
     setIsConfirmOpen(false);
     const response = await Fetch_to("GET", routes.deauth);
@@ -136,6 +172,138 @@ export default function Sidebar({
       : pathname === href || pathname.startsWith(`${href}/`);
 
   const initial = userName.trim().charAt(0).toUpperCase() || "U";
+
+  const handleCopyAddress = async () => {
+    if (!wallet_address) return;
+    try {
+      await navigator.clipboard.writeText(wallet_address);
+      setCopiedAddress(true);
+      window.setTimeout(() => setCopiedAddress(false), 1800);
+    } catch {
+      setCopiedAddress(false);
+    }
+  };
+
+  const handleDownloadQrCode = async () => {
+    if (!walletQrCode) return;
+
+    const loadImage = (src: string) => new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new window.Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = src;
+    });
+
+    try {
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      if (!context) return;
+
+      canvas.width = 1080;
+      canvas.height = 1350;
+
+      const brandColors = getComputedStyle(document.documentElement);
+      const primaryColor = brandColors.getPropertyValue("--primary-hex").trim() || "#0077b6";
+      const secondaryColor = brandColors.getPropertyValue("--secondary-hex").trim() || "#90e0ef";
+
+      // Keep the page bright for QR scanning and use Otterpie's blue palette for the frame.
+      const background = context.createLinearGradient(0, 0, 1080, 1350);
+      background.addColorStop(0, "#ffffff");
+      background.addColorStop(1, "#f3fbfd");
+      context.fillStyle = background;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+
+      context.save();
+      context.globalAlpha = 0.18;
+      context.fillStyle = secondaryColor;
+      context.beginPath();
+      context.arc(75, 210, 210, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = primaryColor;
+      context.beginPath();
+      context.arc(1025, 1120, 245, 0, Math.PI * 2);
+      context.fill();
+      context.restore();
+
+      const otterSources = [
+        "/icons/otters/otter-personal.svg",
+        "/icons/otters/otter-supplier.svg",
+        "/icons/otters/otter-rent.svg",
+        "/icons/otters/otter-savings.svg",
+        "/icons/otters/otter-default.svg",
+      ];
+      const otters = await Promise.all(otterSources.map((src) => loadImage(src).catch(() => null)));
+      context.save();
+      context.globalAlpha = 0.13;
+      const otterPositions = [
+        [54, 105, 118], [890, 88, 126], [35, 425, 110], [935, 505, 106],
+        [32, 870, 120], [918, 980, 122], [160, 1160, 100], [815, 1190, 110],
+      ];
+      otterPositions.forEach(([x, y, size], index) => {
+        const otter = otters[index % otters.length];
+        if (otter) context.drawImage(otter, x, y, size, size);
+      });
+      context.restore();
+
+      // Centered brand header.
+      const logo = await loadImage("/logo.svg").catch(() => null);
+      if (logo) context.drawImage(logo, 476, 76, 128, 128);
+      context.fillStyle = primaryColor;
+      context.font = "700 54px system-ui, sans-serif";
+      const brandLabel = "Otterpie";
+      const brandWidth = context.measureText(brandLabel).width;
+      context.fillStyle = primaryColor;
+      context.font = "400 31px system-ui, sans-serif";
+      const storeLabel = (storeName?.trim() || "My Store").slice(0, 36);
+      const storeWidth = context.measureText(storeLabel).width;
+      const separatorWidth = 34;
+      const labelStart = (canvas.width - brandWidth - separatorWidth - storeWidth) / 2;
+      context.textAlign = "left";
+      context.fillStyle = primaryColor;
+      context.font = "700 54px system-ui, sans-serif";
+      context.fillText(brandLabel, labelStart, 272);
+      context.fillStyle = secondaryColor;
+      context.font = "400 31px system-ui, sans-serif";
+      context.fillText("·", labelStart + brandWidth + 12, 270);
+      context.fillStyle = primaryColor;
+      context.fillText(storeLabel, labelStart + brandWidth + separatorWidth, 270, 500);
+
+      // The QR sits on a quiet white panel with generous scan margin.
+      context.fillStyle = "rgba(255,255,255,0.94)";
+      context.beginPath();
+      context.roundRect(176, 366, 728, 728, 38);
+      context.fill();
+      context.strokeStyle = secondaryColor;
+      context.lineWidth = 3;
+      context.stroke();
+
+      const qrImage = await loadImage(walletQrCode);
+      context.imageSmoothingEnabled = false;
+      context.drawImage(qrImage, 220, 410, 640, 640);
+      context.imageSmoothingEnabled = true;
+
+      context.textAlign = "center";
+      context.fillStyle = primaryColor;
+      context.font = "650 32px system-ui, sans-serif";
+      context.fillText("Scan to pay", 540, 1170);
+      context.fillStyle = primaryColor;
+      context.font = "400 23px system-ui, sans-serif";
+      context.fillText(network === "bot_chain" ? "BOT Chain · EVM wallet" : "Stellar wallet", 540, 1212);
+
+      const imageBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!imageBlob) return;
+
+      const imageUrl = URL.createObjectURL(imageBlob);
+      const link = document.createElement("a");
+      const storeSlug = (storeName?.trim() || "store").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      link.href = imageUrl;
+      link.download = `otterpie-${storeSlug || "store"}-payment-qr.png`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(imageUrl), 1000);
+    } catch {
+      // Keep the download button quiet if the browser cannot render the branded card.
+    }
+  };
 
   return (
     <>
@@ -219,7 +387,12 @@ export default function Sidebar({
             isOpen ? "block" : "hidden"
           } border-t border-foreground/10 p-3 md:block`}
         >
-          <div className="flex items-center gap-3 px-2 py-2">
+          <button
+            type="button"
+            onClick={() => setIsProfileOpen(true)}
+            aria-label="View profile details"
+            className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left outline-none transition-colors hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-primary/40"
+          >
             <div
               aria-hidden="true"
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary"
@@ -236,7 +409,7 @@ export default function Sidebar({
                 </p>
               )}
             </div>
-          </div>
+          </button>
 
           <button
             type="button"
@@ -248,6 +421,161 @@ export default function Sidebar({
           </button>
         </div>
             </aside>
+
+      {/* Profile details */}
+      {isProfileOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4 backdrop-blur-[2px]"
+          onClick={() => setIsProfileOpen(false)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="profile-title"
+            onClick={(event) => event.stopPropagation()}
+            className="w-full max-w-5xl rounded-2xl border border-foreground/10 bg-background p-5 text-foreground shadow-xl sm:p-6"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span aria-hidden="true" className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary">
+                  {initial}
+                </span>
+                <div>
+                  <h2 id="profile-title" className="text-lg font-semibold">Profile details</h2>
+                  <p className="mt-0.5 text-sm text-foreground/50">Your account information</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsProfileOpen(false)}
+                aria-label="Close profile details"
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-foreground/50 hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-5">
+              <section aria-label="Account profile" className="rounded-xl border border-foreground/10 bg-foreground/[0.02] p-5">
+                <div className="flex items-center gap-4">
+                  <span aria-hidden="true" className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full bg-primary/10 text-4xl font-semibold text-primary">
+                    {initial}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground/45">Username</p>
+                    <p className="mt-1 break-words text-base font-semibold">{userName}</p>
+                    <p className="mt-2 text-xs font-medium text-foreground/45">Store name</p>
+                    <p className="mt-1 break-words text-sm text-foreground/75">{storeName || "Not available"}</p>
+                    <p className="mt-2 text-xs font-medium text-foreground/45">Email</p>
+                    <p className="mt-1 break-all text-sm text-foreground/75">{userEmail || "Not available"}</p>
+                  </div>
+                  <div className="ml-auto flex shrink-0 flex-wrap justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDownloadQrCode}
+                      disabled={!walletQrCode}
+                      className="inline-flex items-center gap-2 rounded-lg border border-foreground/15 px-4 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                        <path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5M4 14v2h12v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      Download QR code
+                    </button>
+                    <Link
+                      href="/user/setting"
+                      onClick={() => setIsProfileOpen(false)}
+                      className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-foreground/15 px-4 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    >
+                      <SettingsIcon />
+                      Edit profile
+                    </Link>
+                  </div>
+                </div>
+              </section>
+
+              <section aria-label="Wallet address and payment QR code" className="rounded-xl border border-foreground/10 p-5">
+                <p className="text-xs font-medium text-foreground/45">Wallet address</p>
+                <p className="mt-1 break-all font-mono text-xs leading-relaxed text-foreground/80">
+                  {wallet_address || "Not available"}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleCopyAddress}
+                  disabled={!wallet_address}
+                  className="mt-3 inline-flex items-center gap-2 rounded-md border border-foreground/15 px-3 py-1.5 text-xs font-medium text-foreground/75 transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {copiedAddress ? (
+                    <>
+                      <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4 text-emerald-600">
+                        <path d="m4 10 4 4 8-8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                        <rect x="7" y="7" width="9" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+                        <path d="M13 7V4.5A1.5 1.5 0 0 0 11.5 3h-7A1.5 1.5 0 0 0 3 4.5v8A1.5 1.5 0 0 0 4.5 14H7" stroke="currentColor" strokeWidth="1.4" />
+                      </svg>
+                      Copy address
+                    </>
+                  )}
+                </button>
+
+                <div className="mt-5 border-t border-foreground/10 pt-5 text-center">
+                  <p className="text-sm font-semibold">Scan to pay or deposit to this wallet</p>
+                  <p className="mt-1 text-xs text-foreground/50">
+                    {network === "bot_chain"
+                      ? "EVM wallet · BOT Chain Mainnet · Chain ID 677"
+                      : network === "stellar"
+                        ? "Non-EVM wallet · Stellar network"
+                        : "Scan with a wallet that supports this network."}
+                  </p>
+                  {walletQrCode ? (
+                    <Image
+                      src={walletQrCode}
+                      alt="QR code containing this wallet address"
+                      width={288}
+                      height={288}
+                      unoptimized
+                      className="mx-auto mt-4 h-56 w-56 rounded-lg bg-white p-2 sm:h-60 sm:w-60"
+                    />
+                  ) : (
+                    <div className="mx-auto mt-4 flex h-56 w-56 items-center justify-center rounded-lg border border-dashed border-foreground/15 text-xs text-foreground/45 sm:h-60 sm:w-60">
+                      {wallet_address ? "Preparing QR code…" : "Wallet address unavailable"}
+                    </div>
+                  )}
+                  <div className="mx-auto mt-4 max-w-2xl rounded-lg bg-foreground/[0.03] p-4 text-left">
+                    {network === "bot_chain" ? (
+                      <>
+                        <h3 className="text-xs font-semibold">Using an EVM wallet</h3>
+                        <ol className="mt-2 list-decimal space-y-1.5 pl-4 text-xs leading-relaxed text-foreground/60">
+                          <li>Select BOT Chain Mainnet (Chain ID 677) in MetaMask or another EVM wallet.</li>
+                          <li>Scan this QR from the wallet&apos;s send screen. If it doesn&apos;t recognize the QR, copy the address above and select BOT Chain manually.</li>
+                          <li>Check the recipient and enter the amount. Keep some BOT in the wallet for network fees.</li>
+                        </ol>
+                      </>
+                    ) : network === "stellar" ? (
+                      <>
+                        <h3 className="text-xs font-semibold">Using a non-EVM Stellar wallet</h3>
+                        <ol className="mt-2 list-decimal space-y-1.5 pl-4 text-xs leading-relaxed text-foreground/60">
+                          <li>Open Freighter or another wallet that supports Stellar.</li>
+                          <li>Choose Send or Payment, then scan the QR or paste the Stellar address above.</li>
+                          <li>Check the recipient, select the asset, and enter the amount before confirming.</li>
+                        </ol>
+                      </>
+                    ) : (
+                      <p className="text-xs leading-relaxed text-foreground/60">
+                        Choose a wallet that supports this account&apos;s network, then verify the recipient and network before sending.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </section>
+            </div>
+          </section>
+        </div>
+      )}
 
       {/* Logout confirmation */}
       {isConfirmOpen && (

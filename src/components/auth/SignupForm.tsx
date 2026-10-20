@@ -13,7 +13,7 @@ export default function SignupForm() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [agreed, setAgreed] = useState(false);
-  const [network, setNetwork] = useState("stellar");
+  const [network, setNetwork] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -22,6 +22,16 @@ export default function SignupForm() {
     setError(null);
 
     if(!agreed) return setError("You need to agree to the Terms and Privacy Policy to continue.");
+
+    if (username.trim().length >= 15) {
+      setError("Username must be fewer than 15 characters.");
+      return;
+    }
+
+    if (password.length <= 8) {
+      setError("Password must be more than 8 characters.");
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError("Those passwords don't match.");
@@ -73,16 +83,7 @@ export default function SignupForm() {
             required
             value={storeName}
             onChange={(e) => setStoreName(e.target.value)}
-            placeholder="Aling Nena's Store"
-          />
-          <TextField
-            id="email"
-            label="Email"
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@tindahan.com"
+            placeholder="Enter store name"
           />
           <TextField
             id="username"
@@ -90,9 +91,23 @@ export default function SignupForm() {
             type="text"
             required
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="username"
+            onChange={(e) => setUsername(e.target.value.slice(0, 14))}
+            placeholder="Enter username"
+            autoComplete="username_v1"
+            maxLength={14}
           />
+          <p className="-mt-3 text-xs text-foreground/50">Up to 14 characters.</p>
+          <TextField
+            id="email"
+            label="Email"
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            autoComplete="eamil"
+          />
+          
           <TextField
             id="password"
             label="Password"
@@ -100,8 +115,10 @@ export default function SignupForm() {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder=""
+            placeholder="••••••••"
+            minLength={9}
           />
+          <p className="-mt-3 text-xs text-foreground/50">Use at least 9 characters.</p>
           <TextField
             id="confirmPassword"
             label="Confirm password"
@@ -109,7 +126,8 @@ export default function SignupForm() {
             required
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder=""
+            placeholder="••••••••"
+            minLength={9}
           />
           <Select
             id="network"
@@ -118,6 +136,7 @@ export default function SignupForm() {
             value={network}
             onChange={(e) => setNetwork(e.target.value)}
             options={[
+              { value: " ", label: "Select Networks" },
               { value: "stellar", label: "Stellar" },
               { value: "bot_chain", label: "Bot Chain" },
             ]}

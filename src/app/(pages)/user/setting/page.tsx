@@ -1,12 +1,51 @@
+"use client";
+import { Setting } from "@/components/user";
 import { Sidebar } from "@/components/layout";
+import { Fetch_to } from "@/utilities";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import routes from "@/routes/jwt.json";
 
-export default function UserSettingsPage() {
+export default function UserSettingPage() {
+  const router = useRouter();
+  const [data, setData] = useState({
+    email: "", network: "", username: "", wallet_address: "", storeName: ""
+  });
+
+  useEffect(() => {
+    const verify = async() => {
+
+      const response = await Fetch_to("GET", routes.verify);
+
+      if (response.success) {
+        const data = response.data.message.data;
+        setData(prev => ({ ...prev,
+          email: data.email,
+          network: data.network,
+          username: data.username,
+          wallet_address: data.wallet_address,
+          storeName: data.storeName
+        }));
+      } else {
+        router.push("/auth/login");
+      }
+
+    };
+    verify();
+  }, []);
   return (
     <main className="min-h-screen bg-background px-4 py-8 md:px-8">
-      <Sidebar />
-      <section className="mx-auto max-w-6xl pt-8 md:pl-72">
-        <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
-        <p className="mt-2 text-muted-foreground">Manage your account settings.</p>
+      <Sidebar userEmail={data.email} userName={data.username} storeName={data.storeName} wallet_address={data.wallet_address} network={data.network} />
+      <section className="mx-auto max-w-7xl pt-8 md:pl-72">
+        <Setting
+          email={data.email}
+          username={data.username}
+          walletAddress={data.wallet_address}
+          network={data.network}
+          storeName={data.storeName}
+          onUsernameChange={(username) => setData((current) => ({ ...current, username }))}
+          onStoreNameChange={(storeName) => setData((current) => ({ ...current, storeName }))}
+        />
       </section>
     </main>
   );

@@ -22,7 +22,10 @@ type Incoming = {
   amount: string;
   asset: string;
   from: string | null;
+  to: string | null;
+  direction: "received" | "sent";
   type: string;
+  status: "Completed" | "Failed";
 };
 
 type ExplorerTx = {
@@ -109,18 +112,22 @@ export async function POST(params: NextRequest) {
       const date = new Date(Number(t.timeStamp) * 1000);
       if (date < cutoff) continue;
 
-      const received = t.to?.toLowerCase() === me; // money in, not money sent out
+      const received = t.to?.toLowerCase() === me;
+      const sent = t.from?.toLowerCase() === me;
       const succeeded = t.isError === undefined || t.isError === "0";
       const hasValue = t.value !== "0" && t.value !== "";
 
-      if (received && succeeded && hasValue) {
+      if ((received || sent) && hasValue) {
         transactions.push({
           id: t.hash,
           date: date.toISOString(),
           amount: formatEther(BigInt(t.value)),
           asset: "BOT",
           from: t.from ?? null,
+          to: t.to ?? null,
+          direction: received ? "received" : "sent",
           type: "transfer",
+          status: succeeded ? "Completed" : "Failed",
         });
       }
     }

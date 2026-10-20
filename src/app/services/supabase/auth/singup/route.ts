@@ -18,7 +18,23 @@ export async function POST(params: NextRequest) {
 
   try {
     
-    if (!storeName || !email || !password || !network || !username) return NextResponse.json({ success: false, error: "Invalid Credentials" }, { status: 400 });
+    if (!storeName || !email || !password || !network || !username) {
+      return NextResponse.json({ success: false, error: "Invalid Credentials" }, { status: 400 });
+    }
+
+    if (typeof username !== "string" || username.trim().length >= 15) {
+      return NextResponse.json(
+        { success: false, error: "Username must be fewer than 15 characters" },
+        { status: 400 }
+      );
+    }
+
+    if (typeof password !== "string" || password.length <= 8) {
+      return NextResponse.json(
+        { success: false, error: "Password must be more than 8 characters" },
+        { status: 400 }
+      );
+    }
 
     const { error } = await supabaseServer
     .from("tbl_auth")
@@ -26,7 +42,7 @@ export async function POST(params: NextRequest) {
       email: email.toLowerCase(),
       password: String(await bcrypt.hash(password, 10)),
       storeName: storeName.toLowerCase(),
-      username: username.toLowerCase()
+      username: username.trim().toLowerCase()
     }]);
 
     if (error) {
@@ -56,7 +72,8 @@ export async function POST(params: NextRequest) {
       wallet_address: wallet.walletAddress,
       secret_key: encryptText(wallet.secretKey, process.env.WALLET_BANK_KEY || ""),
       email: email,
-      network: network
+      network: network,
+      username: username
     }]);
 
     if (WalletErr) {

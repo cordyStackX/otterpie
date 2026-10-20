@@ -8,7 +8,7 @@ import routes from "@/routes/auth.json";
 
 export default function LoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,14 +17,14 @@ export default function LoginForm() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    setLoading(true);
 
     if (!agreed) return setError("You need to agree to the Terms and Privacy Policy to continue.");
+    setLoading(true);
 
     try {
       
       const response = await Fetch_to("POST", routes.login, {
-        email: email,
+        identifier: identifier.trim(),
         password: password        
       });
 
@@ -55,13 +55,14 @@ export default function LoginForm() {
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <TextField
-            id="email"
-            label="Email"
-            type="email"
+            id="login-identifier"
+            label="Username or email"
+            type="text"
             required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@tindahan.com"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            placeholder="Username or you@tindahan.com"
+            autoComplete="username"
           />
           <TextField
             id="password"

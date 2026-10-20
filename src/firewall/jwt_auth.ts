@@ -13,7 +13,7 @@ export default async function auth_jwt(email: string) {
 
   const { data, error } = await supabaseServer
   .from("tbl_wallet")
-  .select("network, email, username")
+  .select("network, email, username, wallet_address")
   .eq("email", email)
   .maybeSingle();
 
