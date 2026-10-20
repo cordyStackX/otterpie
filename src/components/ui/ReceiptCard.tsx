@@ -6,7 +6,7 @@ interface ReceiptCardProps {
 
 export default function ReceiptCard({ children }: ReceiptCardProps) {
   return (
-    <div className="w-full max-w-sm">
+    <div className="w-full max-w-md">
       <div className="relative rounded-t-xl overflow-hidden shadow-[0_20px_50px_-20px_rgba(0,119,182,0.35)]">
         {children}
       </div>

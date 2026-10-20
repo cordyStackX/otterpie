@@ -1,12 +1,14 @@
 {
-    "title" : "OtterPie - one scan, sliced three ways. Automatic payment splitting for sari-sari stores, built on Stellar.",
-    "description" : "Sari-sari store owners juggle supplier payments, daily income, and savings by hand, usually in cash. Otterpie fixes that with one QR code: when a customer pays, the payment is automatically split between the supplier’s share, the store’s income, and a savings pool, all in a single Stellar transaction.",
-    "domain__links": "",
-    "openGraph": "",
+    "title" : "Otterpie — One scan, every fund in its place.",
+    "description" : "A clearer way for small stores to organize wallet payments, track transactions, and plan category shares across supported blockchain networks.",
+    "domain__links": "https://otterpie.vercel.app/",
+    "openGraph": "https://otterpie.vercel.app/og-image.png",
+    "openGraphSvg": "https://otterpie.vercel.app/og-image.svg",
     "wallet__connect_PRID": {
         "Wallet__Connect": "",
         "Based__Sepolia": "",
-        "Stellar" : ""
+        "Stellar" : "",
+        "Bot__Chain" : ""
     },
     "links__src" : {
         "Social__links" : {

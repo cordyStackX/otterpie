@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <defs>
+    <linearGradient id="background" x1="76" y1="30" x2="1110" y2="626" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#071B26"/>
+      <stop offset="1" stop-color="#102D3A"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="matrix(620 390 -400 636 1020 35)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#48CAE4" stop-opacity=".27"/>
+      <stop offset="1" stop-color="#48CAE4" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="card" x1="733" y1="141" x2="1120" y2="495" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff"/>
+      <stop offset="1" stop-color="#EAF8FA"/>
+    </linearGradient>
+    <linearGradient id="pie" x1="795" y1="422" x2="1082" y2="422" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#48CAE4"/>
+      <stop offset=".51" stop-color="#90E0EF"/>
+      <stop offset=".51" stop-color="#F2B84B"/>
+      <stop offset=".72" stop-color="#F2B84B"/>
+      <stop offset=".72" stop-color="#8D75D8"/>
+    </linearGradient>
+    <filter id="shadow" x="675" y="104" width="516" height="490" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" result="hardAlpha" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"/>
+      <feOffset dy="18"/>
+      <feGaussianBlur stdDeviation="20"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix values="0 0 0 0 0 0 0 0 0 0.03 0 0 0 0 0.05 0 0 0 0.28 0"/>
+      <feBlend in2="BackgroundImageFix" result="effect1_dropShadow"/>
+      <feBlend in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
+    </filter>
+    <pattern id="dots" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="1" fill="#BDECF4" fill-opacity=".12"/>
+    </pattern>
+  </defs>
+
+  <path fill="url(#background)" d="M0 0h1200v630H0z"/>
+  <path fill="url(#glow)" d="M0 0h1200v630H0z"/>
+  <path fill="url(#dots)" d="M0 0h1200v630H0z" opacity=".45"/>
+  <circle cx="1100" cy="82" r="190" stroke="#8CE3EF" stroke-opacity=".10" stroke-width="1.5"/>
+  <circle cx="1100" cy="82" r="150" stroke="#8CE3EF" stroke-opacity=".08" stroke-width="1.5"/>
+
+  <!-- Otterpie mark -->
+  <g transform="translate(78 67)">
+    <rect width="58" height="58" rx="18" fill="#48CAE4"/>
+    <ellipse cx="29" cy="36" rx="17" ry="12" fill="#754A2C"/>
+    <circle cx="17" cy="17" r="6" fill="#754A2C"/>
+    <circle cx="41" cy="17" r="6" fill="#754A2C"/>
+    <circle cx="17" cy="17" r="2.8" fill="#D6A477"/>
+    <circle cx="41" cy="17" r="2.8" fill="#D6A477"/>
+    <ellipse cx="29" cy="27" rx="18" ry="15" fill="#8B5E3C"/>
+    <ellipse cx="29" cy="32" rx="10" ry="7" fill="#F0D9B5"/>
+    <circle cx="22" cy="25" r="1.7" fill="#2B1B12"/>
+    <circle cx="36" cy="25" r="1.7" fill="#2B1B12"/>
+    <ellipse cx="29" cy="30" rx="2.5" ry="1.7" fill="#2B1B12"/>
+    <path d="M29 32v2m0 0c-1.7 1.8-3.4 1.8-5.1.7m5.1-.7c1.7 1.8 3.4 1.8 5.1.7" stroke="#2B1B12" stroke-width="1" stroke-linecap="round"/>
+    <path d="M15 48h28" stroke="#F2B84B" stroke-width="5" stroke-linecap="round"/>
+    <path d="M19 46c2-4 6-6 10-6s8 2 10 6" fill="#F2B84B"/>
+  </g>
+  <text x="151" y="105" fill="#F5FBFC" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="700" letter-spacing="-1">otterpie<tspan fill="#F2B84B">.</tspan></text>
+
+  <rect x="80" y="172" width="288" height="34" rx="17" fill="#48CAE4" fill-opacity=".10" stroke="#48CAE4" stroke-opacity=".35"/>
+  <circle cx="100" cy="189" r="4" fill="#48CAE4"/>
+  <text x="114" y="194" fill="#A9EAF3" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" letter-spacing="1.4">WALLET PAYMENTS FOR SMALL STORES</text>
+
+  <text x="78" y="280" fill="#F7FAFB" font-family="Arial, Helvetica, sans-serif" font-size="63" font-weight="700" letter-spacing="-2.6">One scan.</text>
+  <text x="78" y="350" fill="#48CAE4" font-family="Arial, Helvetica, sans-serif" font-size="60" font-weight="700" letter-spacing="-2.8">Every fund</text>
+  <text x="78" y="418" fill="#F7FAFB" font-family="Arial, Helvetica, sans-serif" font-size="60" font-weight="700" letter-spacing="-2.8">in its place.</text>
+  <text x="82" y="470" fill="#B3C4C9" font-family="Arial, Helvetica, sans-serif" font-size="19">Track payments. Plan category shares.</text>
+  <text x="82" y="499" fill="#B3C4C9" font-family="Arial, Helvetica, sans-serif" font-size="19">Keep your store goals in view.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="718" y="134" width="424" height="397" rx="25" fill="url(#card)"/>
+    <rect x="719" y="135" width="422" height="395" rx="24" stroke="#fff" stroke-opacity=".85" stroke-width="2"/>
+    <text x="752" y="179" fill="#60747C" font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="700" letter-spacing="1.5">STORE OVERVIEW</text>
+    <text x="752" y="207" fill="#122D39" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="700">A clearer picture</text>
+    <rect x="1049" y="160" width="62" height="25" rx="12.5" fill="#48CAE4" fill-opacity=".16"/>
+    <text x="1061" y="177" fill="#087D96" font-family="Arial, Helvetica, sans-serif" font-size="10" font-weight="700">EXAMPLE</text>
+
+    <rect x="750" y="229" width="360" height="87" rx="16" fill="#fff" stroke="#DCE9EC"/>
+    <rect x="766" y="247" width="51" height="51" rx="14" fill="#48CAE4" fill-opacity=".14"/>
+    <path d="M780 260h23v17h-23zM784 260v-4h15v4m-19 4h23" stroke="#087D96" stroke-width="1.6" stroke-linejoin="round"/>
+    <text x="834" y="260" fill="#71838A" font-family="Arial, Helvetica, sans-serif" font-size="12">Incoming payment</text>
+    <text x="834" y="289" fill="#122D39" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700">25.00 <tspan fill="#71838A" font-size="13" font-weight="500">XLM</tspan></text>
+    <rect x="1031" y="265" width="61" height="23" rx="11.5" fill="#E7F7F1"/>
+    <text x="1043" y="280" fill="#258464" font-family="Arial, Helvetica, sans-serif" font-size="9" font-weight="700">RECEIVED</text>
+
+    <text x="752" y="352" fill="#5F727A" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="600">Your category plan</text>
+    <text x="1033" y="352" fill="#90A1A7" font-family="Arial, Helvetica, sans-serif" font-size="11">Example split</text>
+    <rect x="752" y="366" width="358" height="10" rx="5" fill="#D9EEF1"/>
+    <path d="M757 366h174v10H757z" fill="#1598B7"/>
+    <path d="M931 366h107v10H931z" fill="#90E0EF"/>
+    <path d="M1038 366h67a5 5 0 0 1 5 5v0a5 5 0 0 1-5 5h-67z" fill="#F2B84B"/>
+
+    <circle cx="759" cy="402" r="5" fill="#1598B7"/>
+    <text x="775" y="406" fill="#4C626A" font-family="Arial, Helvetica, sans-serif" font-size="13">Stock &amp; supplies</text>
+    <text x="1084" y="406" text-anchor="end" fill="#19343E" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700">50%</text>
+    <circle cx="759" cy="434" r="5" fill="#67C7D8"/>
+    <text x="775" y="438" fill="#4C626A" font-family="Arial, Helvetica, sans-serif" font-size="13">Savings</text>
+    <text x="1084" y="438" text-anchor="end" fill="#19343E" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700">30%</text>
+    <circle cx="759" cy="466" r="5" fill="#E6A238"/>
+    <text x="775" y="470" fill="#4C626A" font-family="Arial, Helvetica, sans-serif" font-size="13">For the store</text>
+    <text x="1084" y="470" text-anchor="end" fill="#19343E" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700">20%</text>
+    <rect x="751" y="489" width="358" height="1" fill="#DCE9EC"/>
+    <text x="752" y="511" fill="#71838A" font-family="Arial, Helvetica, sans-serif" font-size="11">Example only · Customize your own categories</text>
+  </g>
+
+  <rect x="80" y="548" width="43" height="3" rx="1.5" fill="#F2B84B"/>
+  <text x="135" y="555" fill="#8EA6AE" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="600" letter-spacing="1.2">STELLAR  ·  BOT CHAIN</text>
+  <g transform="translate(1090 544)">
+    <circle cx="20" cy="20" r="20" fill="#48CAE4" fill-opacity=".14"/>
+    <circle cx="13" cy="14" r="4" fill="#8B5E3C"/>
+    <circle cx="27" cy="14" r="4" fill="#8B5E3C"/>
+    <ellipse cx="20" cy="21" rx="12" ry="10" fill="#8B5E3C"/>
+    <ellipse cx="20" cy="24" rx="7" ry="5" fill="#F0D9B5"/>
+    <circle cx="16" cy="19" r="1.2" fill="#2B1B12"/>
+    <circle cx="24" cy="19" r="1.2" fill="#2B1B12"/>
+    <ellipse cx="20" cy="23" rx="1.8" ry="1.3" fill="#2B1B12"/>
+    <path d="M9 34h22" stroke="#F2B84B" stroke-width="4" stroke-linecap="round"/>
+  </g>
+</svg>
