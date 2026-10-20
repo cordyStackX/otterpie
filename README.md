@@ -116,9 +116,9 @@ pnpm dev
 - [x] Auth (login, signup, forgot password)
 - [x] Stellar wallet generation on signup
 - [x] Encrypted wallet storage
-- [ ] QR payment / scan flow
-- [ ] Pie-split confirmation screen
-- [ ] Owner dashboard (tabs, split breakdown)
+- [x] QR payment / scan flow
+- [x] Pie-split confirmation screen
+- [x] Owner dashboard (tabs, split breakdown)
 
 ## License
 
