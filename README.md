@@ -3,7 +3,7 @@
 **One scan, sliced three ways.**
 Automatic payment splitting for sari-sari stores, built on Stellar.
 
-![License: CC0-1.0](https://img.shields.io/badge/license-CC0--1.0-blue)
+![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![Built with Next.js](https://img.shields.io/badge/Next.js-black)
 ![Stellar](https://img.shields.io/badge/Stellar-testnet-7D00FF)
 
@@ -122,7 +122,7 @@ pnpm dev
 
 ## License
 
-This project is released under **CC0 1.0 Universal** — public domain. See [LICENSE](./LICENSE) for the full text.
+This project is released under the **Apache License 2.0**. See [LICENSE](./LICENSE) for the full text.
 
 ## Contributors
 
