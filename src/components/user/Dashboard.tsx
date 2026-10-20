@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import { Fetch_to } from "@/utilities";
 import routes from "@/routes/user.json";
+import withdrawRoutes from "@/routes/withdraw.json";
 
 type DashboardProps = {
   email: string;
@@ -219,50 +220,81 @@ function shortAddress(address: string) {
     : address;
 }
 
-// Prototype withdraw dialog. Uses the native <dialog> element, which gives us
-// focus trapping, Escape-to-close and a backdrop without extra code.
+// Uses the native <dialog> element for focus trapping, Escape-to-close and a backdrop.
 function WithdrawDialog({
   category,
+  network,
+  withdrawAll = false,
   formatAmount,
   onClose,
   onWithdrawn,
 }: {
   category: Category;
+  network: string;
+  withdrawAll?: boolean;
   formatAmount: FormatAmount;
   onClose: () => void;
-  onWithdrawn: (id: string) => void;
+  onWithdrawn: (id: string, amount: number) => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [balance] = useState(category.amount); // balance at the moment of opening
+  const [balance] = useState(category.amount); // available category balance at open
+  const [amount, setAmount] = useState(category.amount ? String(category.amount) : "");
   const [address, setAddress] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting" | "done">("idle");
   const [sentTo, setSentTo] = useState("");
+  const [txHash, setTxHash] = useState("");
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (dialog && !dialog.open) dialog.showModal();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = address.trim();
-
-    // Prototype check only. Replace with validation for your wallet network.
-    if (!/^\S{20,}$/.test(trimmed)) {
-      setError("Enter a valid wallet address.");
+    const amountNumber = Number(amount);
+    if (!password) {
+      setError("Enter your account password to confirm this transfer.");
       return;
     }
-
+    if (!withdrawAll && (!Number.isFinite(amountNumber) || amountNumber <= 0 || amountNumber > balance)) {
+      setError("Enter an amount greater than zero and no more than the available balance.");
+      return;
+    }
     setError("");
     setStatus("submitting");
-
-    // TODO: Fetch_to("POST", routes.withdraw, { category: category.name, address: trimmed })
-    setTimeout(() => {
+    const endpoint = network === "stellar"
+      ? withdrawRoutes.withdraw_stellar
+      : network === "bot_chain"
+        ? withdrawRoutes.withdraw_botchain
+        : null;
+    if (!endpoint) {
+      setError("Withdrawals are not supported for this wallet network.");
+      setStatus("idle");
+      return;
+    }
+    try {
+      const response = await Fetch_to("POST", endpoint, {
+        address: trimmed,
+        amount: amount.trim(),
+        withdrawAll,
+        password,
+      });
+      if (!response.success) throw new Error(response.message || "The transfer could not be submitted.");
+      const result = response.data as { txHash?: string; amount?: string };
       setSentTo(trimmed);
-      onWithdrawn(category.id);
+      setTxHash(result.txHash || "");
+      if (result.amount) setAmount(result.amount);
+      if (!withdrawAll) onWithdrawn(category.id, amountNumber);
       setStatus("done");
-    }, 900);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The transfer could not be submitted.");
+      setStatus("idle");
+    } finally {
+      setPassword("");
+    }
   };
 
   const submitting = status === "submitting";
@@ -303,12 +335,13 @@ function WithdrawDialog({
               </svg>
             </div>
             <h2 id="withdraw-title" className="mt-4 text-lg font-semibold">
-              Withdrawal submitted
+              Transfer submitted
             </h2>
             <p className="mt-1.5 text-sm text-foreground/60">
-              {formatAmount(balance)} from {category.name} is being sent to{" "}
+              {formatAmount(Number(amount))} from {category.name} was submitted to{" "}
               <span className="font-mono text-foreground">{shortAddress(sentTo)}</span>.
             </p>
+            {txHash && <p className="mt-2 break-all font-mono text-xs text-foreground/50">Transaction: {txHash}</p>}
             <button
               type="button"
               autoFocus
@@ -322,7 +355,7 @@ function WithdrawDialog({
           <form onSubmit={handleSubmit} noValidate>
             <div className="flex items-start justify-between gap-4">
               <h2 id="withdraw-title" className="text-lg font-semibold tracking-tight">
-                Withdraw from {category.name}
+                {withdrawAll ? "Withdraw all wallet funds" : `Withdraw from ${category.name}`}
               </h2>
               <button
                 type="button"
@@ -355,9 +388,38 @@ function WithdrawDialog({
               </p>
             </div>
 
+            {withdrawAll && (
+              <p className="mt-2 text-xs text-foreground/50">
+                The network will calculate the maximum sendable amount after reserving fees
+                {network === "stellar" ? " and Stellar's minimum account balance" : ""}.
+              </p>
+            )}
+
+            {!withdrawAll && (
+              <>
+                <label htmlFor="withdraw-amount" className="mt-5 block text-sm font-medium text-foreground">
+                  Amount ({network === "stellar" ? "XLM" : "BOT"})
+                </label>
+                <input
+                  id="withdraw-amount"
+                  type="number"
+                  min="0"
+                  max={balance}
+                  step={network === "stellar" ? "0.0000001" : "any"}
+                  value={amount}
+                  onChange={(e) => {
+                    setAmount(e.target.value);
+                    if (error) setError("");
+                  }}
+                  disabled={submitting || balance === 0}
+                  className="mt-1.5 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/25 disabled:opacity-50"
+                />
+              </>
+            )}
+
             <label
               htmlFor="wallet-address"
-              className="mt-5 block text-sm font-medium text-foreground"
+              className="mt-4 block text-sm font-medium text-foreground"
             >
               Wallet address
             </label>
@@ -388,9 +450,26 @@ function WithdrawDialog({
               </p>
             ) : (
               <p id="wallet-hint" className="mt-1.5 text-xs text-foreground/50">
-                Check the address carefully before you withdraw.
+                Confirm the network and address carefully. Transfers cannot be reversed.
               </p>
             )}
+
+            <label htmlFor="withdraw-password" className="mt-4 block text-sm font-medium text-foreground">
+              Confirm with your password
+            </label>
+            <input
+              id="withdraw-password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (error) setError("");
+              }}
+              disabled={submitting || balance === 0}
+              required
+              className="mt-1.5 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/25 disabled:opacity-50"
+            />
 
             <div className="mt-6 flex gap-3">
               <button
@@ -433,6 +512,8 @@ export default function Dashboard({ email, network }: DashboardProps) {
   const formatAmount = useMemo(() => makeFormatter(network), [network]);
 
   const walletTotal = walletData.reduce((sum, d) => sum + d.amount, 0);
+  const nativeSymbol = NETWORK_SYMBOL[network];
+  const nativeBalance = walletData.find((slice) => slice.name === nativeSymbol)?.amount ?? 0;
   const isEmptyWallet = !loadingBalance && walletTotal === 0;
   // A zero-value pie renders nothing, so use one muted placeholder slice
   const pieData: Slice[] = isEmptyWallet
@@ -650,6 +731,15 @@ export default function Dashboard({ email, network }: DashboardProps) {
               </div>
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={() => setSelected({ id: "__all__", name: "wallet", amount: nativeBalance })}
+            disabled={loadingBalance || nativeBalance <= 0 || !nativeSymbol}
+            className="mt-3 w-full rounded-md border border-primary/30 px-3 py-2 text-sm font-medium text-primary outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Withdraw all funds
+          </button>
         </section>
 
         {/* Sales history */}
@@ -867,10 +957,12 @@ export default function Dashboard({ email, network }: DashboardProps) {
           category={selected}
           formatAmount={formatAmount}
           onClose={() => setSelected(null)}
-          onWithdrawn={(id) =>
+          network={network}
+          withdrawAll={selected.id === "__all__"}
+          onWithdrawn={(id, amount) =>
             setWithdrawn((prev) => ({
               ...prev,
-              [id]: (prev[id] ?? 0) + selected.amount,
+              [id]: (prev[id] ?? 0) + amount,
             }))
           }
         />

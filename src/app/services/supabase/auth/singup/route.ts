@@ -1,91 +1,98 @@
-import { NextRequest, NextResponse } from "next/server";
-import { supabaseServer, createStellarWallet, createBotChainWallet } from "@/lib";
 import bcrypt from "bcrypt";
+import { NextRequest, NextResponse } from "next/server";
+import { supabaseServer, createStellarWallet, createBotChainWallet, sendEmailConfirmation } from "@/lib";
 import { rateLimit, encryptText } from "@/firewall";
 
-export async function POST(params: NextRequest) {
-
-  const rate = rateLimit(params, { windowMs: 60_0000, max: 5, keyPrefix: "Sign_up" });
+export async function POST(request: NextRequest) {
+  const rate = rateLimit(request, { windowMs: 60_000, max: 5, keyPrefix: "Sign_up" });
   if (!rate.allowed) {
     const retryAfterSeconds = Math.ceil((rate.resetAt - Date.now()) / 1000);
-      return NextResponse.json(
-        { success: false, error: "Too many requests. Please try again later." },
-        { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
-      );
+    return NextResponse.json(
+      { success: false, error: "Too many requests. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
+    );
   }
-  
-  const { storeName, email, password, network, username } = await params.json();
 
   try {
-    
-    if (!storeName || !email || !password || !network || !username) {
-      return NextResponse.json({ success: false, error: "Invalid Credentials" }, { status: 400 });
+    const body: unknown = await request.json();
+    if (!body || typeof body !== "object") {
+      return NextResponse.json({ success: false, error: "Invalid credentials." }, { status: 400 });
     }
 
-    if (typeof username !== "string" || username.trim().length >= 15) {
-      return NextResponse.json(
-        { success: false, error: "Username must be fewer than 15 characters" },
-        { status: 400 }
-      );
+    const { storeName, email, password, network, username } = body as Record<string, unknown>;
+    if (
+      typeof storeName !== "string" || !storeName.trim() ||
+      typeof email !== "string" || !email.trim() ||
+      typeof password !== "string" || !password ||
+      typeof network !== "string" ||
+      typeof username !== "string" || !username.trim()
+    ) {
+      return NextResponse.json({ success: false, error: "Invalid credentials." }, { status: 400 });
+    }
+    if (username.trim().length >= 15) {
+      return NextResponse.json({ success: false, error: "Username must be fewer than 15 characters." }, { status: 400 });
+    }
+    if (password.length <= 8) {
+      return NextResponse.json({ success: false, error: "Password must be more than 8 characters." }, { status: 400 });
+    }
+    if (storeName.trim().length > 60) {
+      return NextResponse.json({ success: false, error: "Store name must be 60 characters or fewer." }, { status: 400 });
     }
 
-    if (typeof password !== "string" || password.length <= 8) {
-      return NextResponse.json(
-        { success: false, error: "Password must be more than 8 characters" },
-        { status: 400 }
-      );
-    }
+    const normalizedEmail = email.trim().toLowerCase();
+    let wallet: { walletAddress: string; secretKey: string };
+    if (network === "stellar") wallet = createStellarWallet();
+    else if (network === "bot_chain") wallet = createBotChainWallet();
+    else return NextResponse.json({ success: false, error: "Choose a supported wallet network." }, { status: 400 });
 
-    const { error } = await supabaseServer
-    .from("tbl_auth")
-    .insert([{ 
-      email: email.toLowerCase(),
-      password: String(await bcrypt.hash(password, 10)),
-      storeName: storeName.toLowerCase(),
-      username: username.trim().toLowerCase()
-    }]);
+    const { error: accountError } = await supabaseServer
+      .from("tbl_auth")
+      .insert([{
+        email: normalizedEmail,
+        password: await bcrypt.hash(password, 10),
+        storeName: storeName.trim().toLowerCase(),
+        username: username.trim().toLowerCase(),
+        confirm_email: 0,
+      }]);
 
-    if (error) {
-      if (error.code === "23505") {
-          return NextResponse.json({ success: false, error: "That email is already registered" }, { status: 409 });
+    if (accountError) {
+      if (accountError.code === "23505") {
+        return NextResponse.json({ success: false, error: "That email or username is already registered." }, { status: 409 });
       }
-      console.error("Supabase Query Error: ", error);
-      return NextResponse.json({ success: false, error: "Something went wrong" }, { status: 500 });
+      console.error("Signup account insert failed:", accountError.code || "unknown");
+      return NextResponse.json({ success: false, error: "Could not create your account." }, { status: 500 });
     }
 
-    let wallet: {
-      walletAddress: string;
-      secretKey: string;
-    };
+    const { error: walletError } = await supabaseServer
+      .from("tbl_wallet")
+      .insert([{
+        wallet_address: wallet.walletAddress,
+        secret_key: encryptText(wallet.secretKey, process.env.WALLET_BANK_KEY || ""),
+        email: normalizedEmail,
+        network,
+        username: username.trim().toLowerCase(),
+      }]);
 
-    if (network === "stellar") {
-        wallet = createStellarWallet();
-    } else if (network === "bot_chain") {
-        wallet = createBotChainWallet();
-    } else {
-        throw new Error("Unsupported network");
+    if (walletError) {
+      await supabaseServer.from("tbl_auth").delete().eq("email", normalizedEmail);
+      console.error("Signup wallet insert failed:", walletError.code || "unknown");
+      return NextResponse.json({ success: false, error: "Could not create your wallet. Please try again." }, { status: 500 });
     }
 
-    const { error: WalletErr } = await supabaseServer
-    .from("tbl_wallet")
-    .insert([{ 
-      wallet_address: wallet.walletAddress,
-      secret_key: encryptText(wallet.secretKey, process.env.WALLET_BANK_KEY || ""),
-      email: email,
-      network: network,
-      username: username
-    }]);
-
-    if (WalletErr) {
-      console.error("Supabase Query Error: ", WalletErr);
-      return NextResponse.json({ success: false, error: WalletErr.details }, { status: 500 });
+    try {
+      await sendEmailConfirmation(normalizedEmail, request);
+    } catch (mailError) {
+      await supabaseServer.from("tbl_wallet").delete().eq("email", normalizedEmail);
+      await supabaseServer.from("tbl_auth").delete().eq("email", normalizedEmail);
+      console.error("Signup confirmation email failed:", mailError instanceof Error ? mailError.name : "UnknownError");
+      const message = mailError instanceof Error && mailError.message === "EmailConfirmationNotConfigured"
+        ? "Email confirmation is not configured on the server."
+        : "Could not send the confirmation email. Check your Gmail settings and try again.";
+      return NextResponse.json({ success: false, error: message }, { status: 502 });
     }
 
-    return NextResponse.json({ success: true }, { status: 200 });
-
-  } catch (e) {
-    console.error(e);
-    return NextResponse.json({ success: false, message: "Something Went to Servers" }, { status: 500 });
+    return NextResponse.json({ success: true, message: "Check your email to confirm your account." }, { status: 201 });
+  } catch {
+    return NextResponse.json({ success: false, error: "Something went wrong. Please try again." }, { status: 500 });
   }
-
 }

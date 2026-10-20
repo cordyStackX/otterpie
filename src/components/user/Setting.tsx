@@ -3,6 +3,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Fetch_to } from "@/utilities"; 
 import routes from "@/routes/user.json";
+import authRoutes from "@/routes/auth.json";
 
 type SettingProps = {
   email: string;
@@ -33,6 +34,8 @@ export default function Setting({ email, username, storeName, walletAddress, net
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordMessage, setPasswordMessage] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
+  const [forgotPasswordMessage, setForgotPasswordMessage] = useState("");
+  const [sendingForgotPassword, setSendingForgotPassword] = useState(false);
 
   useEffect(() => setNewUsername(username), [username]);
   useEffect(() => setNewStoreName(storeName), [storeName]);
@@ -90,7 +93,7 @@ export default function Setting({ email, username, storeName, walletAddress, net
     setSavingPassword(true);
     setPasswordMessage("");
     try {
-      const response = await Fetch_to("PATCH", routes.modify_user_data, { hasPassword: currentPassword, hasNewPassword: newPassword });
+      const response = await Fetch_to("PATCH", routes.modify_user_data, { hasPassword: currentPassword, hasNewPassword: newPassword, email: email });
       if (!response.success) {
         setPasswordMessage(response.message || "Could not update password.");
         return;
@@ -103,6 +106,23 @@ export default function Setting({ email, username, storeName, walletAddress, net
       setPasswordMessage("Could not update password. Please try again.");
     } finally {
       setSavingPassword(false);
+    }
+  };
+
+  const sendForgotPasswordLink = async () => {
+    setSendingForgotPassword(true);
+    setForgotPasswordMessage("");
+    try {
+      const response = await Fetch_to("POST", authRoutes["forgot-password"], { email });
+      setForgotPasswordMessage(
+        response.success
+          ? `If an account exists for ${email}, a password reset link will be sent.`
+          : response.message || "Could not send a reset link. Please try again."
+      );
+    } catch {
+      setForgotPasswordMessage("Could not send a reset link. Please try again.");
+    } finally {
+      setSendingForgotPassword(false);
     }
   };
 
@@ -291,9 +311,11 @@ export default function Setting({ email, username, storeName, walletAddress, net
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
               <button
                 type="button"
+                onClick={sendForgotPasswordLink}
+                disabled={sendingForgotPassword || !email}
                 className="rounded-xl border border-foreground/15 px-5 py-3 text-center text-sm font-medium text-foreground/75 transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               >
-                Forgot password?
+                {sendingForgotPassword ? "Sending link…" : "Forgot password?"}
               </button>
               <button
                 type="submit"
@@ -303,6 +325,11 @@ export default function Setting({ email, username, storeName, walletAddress, net
                 {savingPassword ? "Updating…" : "Update password"}
               </button>
             </div>
+            {forgotPasswordMessage && (
+              <p role="status" className={`text-right text-sm ${forgotPasswordMessage.startsWith("If an account exists") ? "text-emerald-600" : "text-rose-600"}`}>
+                {forgotPasswordMessage}
+              </p>
+            )}
           </form>
         </div>
       </section>

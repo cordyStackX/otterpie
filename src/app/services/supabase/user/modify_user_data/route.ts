@@ -80,7 +80,7 @@ export async function PATCH(request: NextRequest) {
       if (!account) {
         return NextResponse.json({ success: false, error: "Account not found" }, { status: 404 });
       }
-      if (!(await bcrypt.compare(hasNewPassword, account.password))) {
+      if (!(await bcrypt.compare(hasPassword, account.password))) {
         return NextResponse.json({ success: false, error: "Current password is incorrect" }, { status: 401 });
       }
 

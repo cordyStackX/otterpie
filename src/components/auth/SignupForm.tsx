@@ -2,11 +2,9 @@
 import { Fetch_to } from "@/utilities";
 import { useState, FormEvent } from "react";
 import { Button, Logo, TextField, ReceiptCard, Checkbox, Select } from "@/components/ui";
-import { useRouter } from "next/navigation";
 import routes from "@/routes/auth.json"; 
 
 export default function SignupForm() {
-  const router = useRouter();
   const [storeName, setStoreName] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -16,6 +14,7 @@ export default function SignupForm() {
   const [network, setNetwork] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [confirmationSent, setConfirmationSent] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -50,7 +49,7 @@ export default function SignupForm() {
       },);
 
       if (response.success) {
-        router.push("/auth/login");
+        setConfirmationSent(true);
       } else {
         return setError(response.message);
       }
@@ -61,6 +60,24 @@ export default function SignupForm() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (confirmationSent) {
+    return (
+      <ReceiptCard>
+        <Logo tagline="Set up your store in a few taps." />
+        <div className="bg-background px-6 pb-8 pt-7">
+          <h1 className="text-2xl font-semibold text-foreground">Confirm your email</h1>
+          <p className="mt-2 text-sm leading-6 text-foreground/60">
+            We sent a confirmation link to <span className="font-medium text-foreground">{email}</span>. Open it to activate your account, then sign in.
+          </p>
+          <p className="mt-6 text-center text-sm text-foreground/60">
+            Already confirmed?{" "}
+            <a href="/auth/login" className="font-medium text-primary hover:underline">Sign in</a>
+          </p>
+        </div>
+      </ReceiptCard>
+    );
   }
 
   return (

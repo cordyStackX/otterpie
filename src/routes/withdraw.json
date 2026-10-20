@@ -1,0 +1,4 @@
+{
+  "withdraw_botchain" : "/services/withdraw/withdraw_botchain",
+  "withdraw_stellar" : "/services/withdraw/withdraw_stellar"
+}

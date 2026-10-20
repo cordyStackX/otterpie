@@ -2,6 +2,8 @@
 
 import { useState, FormEvent } from "react";
 import { Button, Logo, TextField, ReceiptCard } from "@/components/ui";
+import { Fetch_to } from "@/utilities";
+import routes from "@/routes/auth.json";
 
 export default function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
@@ -15,8 +17,11 @@ export default function ForgotPasswordForm() {
     setLoading(true);
 
     try {
-      // Backend wires the real reset-request call in here.
-      // await requestPasswordReset(email);
+      const response = await Fetch_to("POST", routes["forgot-password"], { email });
+      if (!response.success) {
+        setError(response.message || "We couldn't send that reset link. Try again.");
+        return;
+      }
       setSent(true);
     } catch {
       setError("We couldn't send that reset link. Try again.");
@@ -35,7 +40,7 @@ export default function ForgotPasswordForm() {
             Check your email
           </h1>
           <p className="text-foreground/60 text-sm mt-1">
-            We sent a reset link to <span className="text-foreground">{email}</span>.
+            If an account exists for <span className="text-foreground">{email}</span>, we&apos;ll send a password reset link.
           </p>
 
           <p className="text-center text-sm text-foreground/60 mt-8">
@@ -61,7 +66,7 @@ export default function ForgotPasswordForm() {
 
   return (
     <ReceiptCard>
-      <Logo tagline="Sari-sari payments, split in one scan." />
+      <Logo tagline="Organized payments, split in one scan." />
 
       <div className="bg-background px-6 pt-7 pb-8">
         <h1 className="text-2xl font-semibold text-foreground">
@@ -79,7 +84,7 @@ export default function ForgotPasswordForm() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@tindahan.com"
+            placeholder="you@example.com"
           />
 
           {error && <p className="text-sm text-red-600">{error}</p>}

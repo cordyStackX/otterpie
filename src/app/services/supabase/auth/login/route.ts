@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     const identifier = rawIdentifier.trim().toLowerCase();
     const { data: emailAccount, error: emailError } = await supabaseServer
       .from("tbl_auth")
-      .select("email, password")
+      .select("email, password, confirm_email")
       .eq("email", identifier)
       .maybeSingle();
 
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     if (!account) {
       const { data: usernameAccounts, error: usernameError } = await supabaseServer
         .from("tbl_auth")
-        .select("email, password")
+        .select("email, password, confirm_email")
         .eq("username", identifier)
         .limit(2);
 
@@ -63,6 +63,13 @@ export async function POST(request: NextRequest) {
 
     if (!(await bcrypt.compare(password, account.password))) {
       return NextResponse.json({ success: false, error: "Password is incorrect" }, { status: 401 });
+    }
+
+    if (account.confirm_email === 0 || account.confirm_email === "0") {
+      return NextResponse.json(
+        { success: false, error: "Please confirm your email before signing in. Check your inbox for the confirmation link." },
+        { status: 403 }
+      );
     }
 
     const session = await auth_jwt(account.email);

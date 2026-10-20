@@ -13,10 +13,15 @@ export default function LoginForm() {
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [canResendConfirmation, setCanResendConfirmation] = useState(false);
+  const [resendingConfirmation, setResendingConfirmation] = useState(false);
+  const [resendMessage, setResendMessage] = useState("");
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    setCanResendConfirmation(false);
+    setResendMessage("");
 
     if (!agreed) return setError("You need to agree to the Terms and Privacy Policy to continue.");
     setLoading(true);
@@ -31,6 +36,7 @@ export default function LoginForm() {
       if (response.success) {
         router.push("/user");
       } else {
+        setCanResendConfirmation(response.message?.includes("Please confirm your email") ?? false);
         return setError(response.message);
       }
 
@@ -41,9 +47,26 @@ export default function LoginForm() {
     }
   }
 
+  async function handleResendConfirmation() {
+    setResendingConfirmation(true);
+    setResendMessage("");
+    try {
+      const response = await Fetch_to("POST", routes["resend-confirmation"], {
+        identifier: identifier.trim(),
+      });
+      setResendMessage(response.success
+        ? response.data?.message || "If an unconfirmed account matches, a new confirmation link will be sent."
+        : response.message || "Could not request another link. Please try again.");
+    } catch {
+      setResendMessage("Could not request another link. Please try again.");
+    } finally {
+      setResendingConfirmation(false);
+    }
+  }
+
   return (
     <ReceiptCard>
-      <Logo />
+      <Logo tagline="Organized payments, split in one scan."/>
 
       <div className="bg-background px-6 pt-7 pb-8">
         <h1 className="text-2xl font-semibold text-foreground">
@@ -75,6 +98,19 @@ export default function LoginForm() {
           />
 
           {error && <p className="text-sm text-red-600">{error}</p>}
+          {canResendConfirmation && (
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleResendConfirmation}
+                disabled={resendingConfirmation || !identifier.trim()}
+                className="text-sm font-medium text-primary hover:underline disabled:cursor-wait disabled:opacity-60"
+              >
+                {resendingConfirmation ? "Sending another link…" : "Resend confirmation email"}
+              </button>
+              {resendMessage && <p role="status" className="text-sm text-foreground/60">{resendMessage}</p>}
+            </div>
+          )}
 
           <Checkbox
             id="terms"
