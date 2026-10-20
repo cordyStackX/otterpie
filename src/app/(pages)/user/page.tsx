@@ -9,7 +9,7 @@ import routes from "@/routes/jwt.json";
 export default function UserDashboardPage() {
   const router = useRouter();
   const [data, setData] = useState({
-    email: "", network: "", username: "", wallet_address: "", storeName: ""
+    email: "", network: "", username: "", wallet_address: "", storename: ""
   });
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export default function UserDashboardPage() {
           network: data.network,
           username: data.username,
           wallet_address: data.wallet_address,
-          storeName: data.storeName
+          storename: data.storeName
         }));
       } else {
         router.push("/auth/login");
@@ -36,7 +36,7 @@ export default function UserDashboardPage() {
 
   return (
     <main className="min-h-screen bg-background px-4 py-8 md:px-8">
-      <Sidebar userEmail={data.email} userName={data.username} storeName={data.storeName} wallet_address={data.wallet_address} network={data.network} />
+      <Sidebar userEmail={data.email} userName={data.username} storeName={data.storename} wallet_address={data.wallet_address} network={data.network} />
       <section className="mx-auto max-w-7xl pt-8 md:pl-72">
         <Dashboard email={data.email} network={data.network}  />
       </section>

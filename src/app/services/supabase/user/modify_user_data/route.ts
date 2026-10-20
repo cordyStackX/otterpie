@@ -52,9 +52,9 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    const accountUpdate: { username?: string; storeName?: string; password?: string } = {};
+    const accountUpdate: { username?: string; storename?: string; password?: string } = {};
     if (cleanUsername !== undefined) accountUpdate.username = cleanUsername.toLowerCase();
-    if (cleanStoreName !== undefined) accountUpdate.storeName = cleanStoreName.toLowerCase();
+    if (cleanStoreName !== undefined) accountUpdate.storename = cleanStoreName.toLowerCase();
 
     if (hasPassword) {
       if (typeof hasPassword !== "string" || typeof hasNewPassword !== "string") {

@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       .insert([{
         email: normalizedEmail,
         password: await bcrypt.hash(password, 10),
-        storeName: storeName.trim().toLowerCase(),
+        storename: storeName.trim().toLowerCase(),
         username: username.trim().toLowerCase(),
         confirm_email: 0,
       }]);
@@ -59,7 +59,12 @@ export async function POST(request: NextRequest) {
       if (accountError.code === "23505") {
         return NextResponse.json({ success: false, error: "That email or username is already registered." }, { status: 409 });
       }
-      console.error("Signup account insert failed:", accountError.code || "unknown");
+      console.error("Signup account insert failed:", {
+        code: accountError.code || "unknown",
+        message: accountError.message,
+        details: accountError.details,
+        hint: accountError.hint,
+      });
       return NextResponse.json({ success: false, error: "Could not create your account." }, { status: 500 });
     }
 

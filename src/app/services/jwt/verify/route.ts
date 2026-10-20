@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 
     const { data: account, error } = await supabaseServer
       .from("tbl_auth")
-      .select("storeName")
+      .select("storename")
       .eq("email", email)
       .maybeSingle();
 
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
       success: true,
       message: {
         ...decoded,
-        data: { ...decoded.data, storeName: account?.storeName ?? "" },
+        data: { ...decoded.data, storeName: account?.storename ?? "" },
       },
     }, { status: 200 });
   } catch {
