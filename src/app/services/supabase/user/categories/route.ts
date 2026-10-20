@@ -13,6 +13,7 @@ type CategoryRule = {
   percent: number;
   goal: number;
   icons: string;
+  color: string;
 };
 
 // The jsonb comes from the database, so keep only well-formed entries and only
@@ -22,7 +23,7 @@ function cleanCategories(raw: unknown): CategoryRule[] {
 
   return raw.flatMap((c) => {
     if (!c || typeof c !== "object") return [];
-    const { id, name, percent, goal, icons } = c as Record<string, unknown>;
+    const { id, name, percent, goal, icons, color } = c as Record<string, unknown>;
 
     if (typeof name !== "string" || !name.trim()) return [];
 
@@ -41,6 +42,10 @@ function cleanCategories(raw: unknown): CategoryRule[] {
           typeof icons === "string" && icons.startsWith("/icons/")
             ? icons
             : DEFAULT_ICON,
+        color:
+          typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color)
+            ? color
+            : "#42c7df",
       },
     ];
   });

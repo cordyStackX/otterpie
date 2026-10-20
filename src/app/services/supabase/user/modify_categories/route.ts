@@ -15,6 +15,15 @@ export async function PATCH(params: NextRequest) {
       return NextResponse.json({ success: false, error: "Invalid Request" }, { status: 400 });
     }
 
+    const invalidColor = category.some((item: unknown) => {
+      if (!item || typeof item !== "object") return true;
+      const color = (item as Record<string, unknown>).color;
+      return color !== undefined && (typeof color !== "string" || !/^#[0-9a-fA-F]{6}$/.test(color));
+    });
+    if (invalidColor) {
+      return NextResponse.json({ success: false, error: "Category colors must be 6-digit hex values" }, { status: 400 });
+    }
+
     const percentages = category.map((item: unknown) => {
       if (!item || typeof item !== "object") return Number.NaN;
       return Number((item as Record<string, unknown>).percent);

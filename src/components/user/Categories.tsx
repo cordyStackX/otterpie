@@ -11,6 +11,7 @@ type Category = {
   percent: number;
   goal: number;
   icons: string;
+  color: string;
 };
 
 type CategoriesProps = { email: string };
@@ -22,6 +23,18 @@ const iconOptions = [
   { name: "Rent", path: "/icons/otters/otter-rent.svg" },
   { name: "Savings", path: "/icons/otters/otter-savings.svg" },
 ];
+
+const colorOptions = [
+  { name: "Cyan", value: "#42c7df" },
+  { name: "Violet", value: "#9b7bea" },
+  { name: "Coral", value: "#f07878" },
+  { name: "Amber", value: "#e9ad4b" },
+  { name: "Mint", value: "#56c9a5" },
+  { name: "Blue", value: "#6298ed" },
+  { name: "Rose", value: "#e879b5" },
+  { name: "Lime", value: "#a4c85a" },
+];
+const DEFAULT_COLOR = colorOptions[0].value;
 
 const card = "rounded-xl border border-foreground/10 bg-background";
 
@@ -36,6 +49,7 @@ export default function Categories({ email }: CategoriesProps) {
   const [goal, setGoal] = useState("");
   const [percent, setPercent] = useState("");
   const [icon, setIcon] = useState(iconOptions[0].path);
+  const [color, setColor] = useState(DEFAULT_COLOR);
   const [formError, setFormError] = useState("");
   const [actionError, setActionError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -81,6 +95,7 @@ export default function Categories({ email }: CategoriesProps) {
     setGoal("");
     setPercent("");
     setIcon(iconOptions[0].path);
+    setColor(DEFAULT_COLOR);
     setFormError("");
   };
 
@@ -131,6 +146,7 @@ export default function Categories({ email }: CategoriesProps) {
       percent: deduction,
       goal: amount,
       icons: icon,
+      color,
     };
     const nextCategories = editingCategoryId
       ? categories.map((category) => category.id === editingCategoryId ? updated : category)
@@ -151,6 +167,7 @@ export default function Categories({ email }: CategoriesProps) {
     setGoal(category.goal ? String(category.goal) : "");
     setPercent(String(category.percent));
     setIcon(category.icons);
+    setColor(category.color || DEFAULT_COLOR);
     setFormError("");
     setDialogOpen(true);
   };
@@ -316,11 +333,17 @@ export default function Categories({ email }: CategoriesProps) {
                           <Image src={category.icons} alt="" width={32} height={32} className="h-8 w-8 object-contain" />
                         </span>
                         <div className="min-w-0">
-                          <h3 className="truncate text-sm font-semibold">{category.name}</h3>
+                          <h3 className="flex items-center gap-2 truncate text-sm font-semibold">
+                            <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: category.color || DEFAULT_COLOR }} />
+                            <span className="truncate">{category.name}</span>
+                          </h3>
                           <p className="mt-0.5 text-xs text-foreground/50">{category.goal > 0 ? `Goal ${formatAmount(category.goal)}` : "No goal set"}</p>
                         </div>
                       </div>
-                      <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums ${selected ? "bg-rose-600 text-white" : "bg-primary/10 text-primary"}`}>
+                      <span
+                        className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums ${selected ? "bg-rose-600 text-white" : ""}`}
+                        style={selected ? undefined : { color: category.color || DEFAULT_COLOR, backgroundColor: `${category.color || DEFAULT_COLOR}20` }}
+                      >
                         {selected && (
                           <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5">
                             <path d="m3.5 8.2 2.8 2.8 6.2-6.2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
@@ -330,7 +353,7 @@ export default function Categories({ email }: CategoriesProps) {
                       </span>
                     </div>
                     <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-foreground/8">
-                      <div className="h-full rounded-full bg-primary" style={{ width: `${category.percent}%` }} />
+                      <div className="h-full rounded-full" style={{ width: `${category.percent}%`, backgroundColor: category.color || DEFAULT_COLOR }} />
                     </div>
                     <p className="mt-2 text-xs text-foreground/45">of every incoming payment</p>
                   </div>
@@ -393,6 +416,24 @@ export default function Categories({ email }: CategoriesProps) {
                       className={`flex aspect-square items-center justify-center rounded-xl border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${icon === option.path ? "border-primary bg-primary/10" : "border-foreground/10 hover:bg-foreground/5"}`}
                     >
                       <Image src={option.path} alt="" width={36} height={36} className="h-9 w-9 object-contain" />
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+
+              <fieldset>
+                <legend className="text-sm font-medium">Choose a color</legend>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {colorOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-label={`${option.name} category color`}
+                      aria-pressed={color === option.value}
+                      onClick={() => setColor(option.value)}
+                      className={`flex h-9 w-9 items-center justify-center rounded-full border transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${color === option.value ? "border-foreground/60" : "border-foreground/10"}`}
+                    >
+                      <span aria-hidden="true" className="h-5 w-5 rounded-full" style={{ backgroundColor: option.value }} />
                     </button>
                   ))}
                 </div>

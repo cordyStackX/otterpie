@@ -86,6 +86,7 @@ type CategoryRule = {
   percent: number; // 0–100
   goal: number; // 0 = no goal
   icons?: string; // icon path under /public, stored with the category
+  color?: string;
 };
 
 type CategoryBalance = CategoryRule & {
@@ -143,7 +144,7 @@ const toSlices = (balances: { asset: string; balance: string }[]): Slice[] =>
     .filter((b) => Number.isFinite(b.amount));
 
 type Category = { id: string; name: string; amount: number };
-type Slice = { name: string; amount: number };
+type Slice = { name: string; amount: number; color?: string };
 
 // Sales = money received by the wallet (incoming payments), in the network's coin
 type Incoming = {
@@ -515,10 +516,6 @@ export default function Dashboard({ email, network }: DashboardProps) {
   const nativeSymbol = NETWORK_SYMBOL[network];
   const nativeBalance = walletData.find((slice) => slice.name === nativeSymbol)?.amount ?? 0;
   const isEmptyWallet = !loadingBalance && walletTotal === 0;
-  // A zero-value pie renders nothing, so use one muted placeholder slice
-  const pieData: Slice[] = isEmptyWallet
-    ? [{ name: "Empty", amount: 1 }]
-    : walletData;
 
   // Everything the wallet has received = current balance + what was already withdrawn.
   // (Refetch the balance after a real withdrawal so this stays correct.)
@@ -528,6 +525,29 @@ export default function Dashboard({ email, network }: DashboardProps) {
     walletTotal + withdrawnTotal,
     withdrawn
   );
+
+  // Show how the current wallet balance is divided across categories. Any funds
+  // outside category allocations get their own slice. Scale allocations down if
+  // they briefly exceed the live balance (for example, immediately after a send).
+  const categoryTotal = categories.reduce((sum, category) => sum + category.available, 0);
+  const categoryScale = categoryTotal > walletTotal && categoryTotal > 0
+    ? walletTotal / categoryTotal
+    : 1;
+  const categorySlices = categories
+    .map((category) => ({
+      name: category.name,
+      amount: round7(category.available * categoryScale),
+      color: category.color,
+    }))
+    .filter((slice) => slice.amount > 0);
+  const categorizedTotal = categorySlices.reduce((sum, slice) => sum + slice.amount, 0);
+  const unassignedAmount = round7(Math.max(walletTotal - categorizedTotal, 0));
+  const pieData: Slice[] = isEmptyWallet
+    ? [{ name: "Empty", amount: 1 }]
+    : [
+        ...categorySlices,
+        ...(unassignedAmount > 0 ? [{ name: "Unassigned", amount: unassignedAmount }] : []),
+      ];
 
   const [incoming, setIncoming] = useState<Incoming[]>([]);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -687,49 +707,68 @@ export default function Dashboard({ email, network }: DashboardProps) {
               Loading balance…
             </p>
           ) : (
-            <div className="relative mt-2 min-h-0 flex-1">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    dataKey="amount"
-                    nameKey="name"
-                    innerRadius="66%"
-                    outerRadius="94%"
-                    paddingAngle={isEmptyWallet ? 0 : 2}
-                    cornerRadius={3}
-                    strokeWidth={0}
-                    isAnimationActive={!isEmptyWallet}
-                  >
-                    {pieData.map((d, i) => (
-                      <Cell
-                        key={d.name}
-                        fill={
-                          isEmptyWallet
-                            ? "rgba(var(--primary-rgba), 0.12)"
-                            : colorForIndex(i)
-                        }
+            <>
+              <div className="relative mt-2 min-h-0 flex-1">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      dataKey="amount"
+                      nameKey="name"
+                      innerRadius="66%"
+                      outerRadius="94%"
+                      paddingAngle={isEmptyWallet ? 0 : 2}
+                      cornerRadius={3}
+                      strokeWidth={0}
+                      isAnimationActive={!isEmptyWallet}
+                    >
+                      {pieData.map((d, i) => (
+                        <Cell
+                          key={d.name}
+                          fill={
+                            isEmptyWallet
+                              ? "rgba(var(--primary-rgba), 0.12)"
+                              : d.color || colorForIndex(i)
+                          }
+                        />
+                      ))}
+                    </Pie>
+                    {!isEmptyWallet && (
+                      <Tooltip
+                        contentStyle={tooltipStyle}
+                        formatter={(value, name) => [
+                          formatAmount(Number(value ?? 0)),
+                          name,
+                        ]}
                       />
-                    ))}
-                  </Pie>
-                  {!isEmptyWallet && (
-                    <Tooltip
-                      contentStyle={tooltipStyle}
-                      formatter={(value, name) => [
-                        formatAmount(Number(value ?? 0)),
-                        name,
-                      ]}
-                    />
-                  )}
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                <p className="text-xs text-foreground/50">Total balance</p>
-                <p className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">
-                  {formatAmount(walletTotal)}
-                </p>
+                    )}
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <p className="text-xs text-foreground/50">Total balance</p>
+                  <p className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">
+                    {formatAmount(walletTotal)}
+                  </p>
+                </div>
               </div>
-            </div>
+              {!isEmptyWallet && pieData.length > 0 && (
+                <ul aria-label="Wallet balance by category" className="mt-2 max-h-20 space-y-1 overflow-y-auto">
+                  {pieData.map((slice, index) => (
+                    <li key={slice.name} className="flex min-w-0 items-center gap-2 text-xs">
+                      <span
+                        aria-hidden="true"
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: slice.color || colorForIndex(index) }}
+                      />
+                      <span className="min-w-0 flex-1 truncate text-foreground/65">{slice.name}</span>
+                      <span className="shrink-0 tabular-nums text-foreground/80">
+                        {formatAmount(slice.amount)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
 
           <button
