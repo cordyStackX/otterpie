@@ -73,7 +73,7 @@ const skeletonClass = "animate-pulse motion-reduce:animate-none rounded-md bg-fo
 // ---------------------------------------------------------------------------
 // Each category shows its percentage of the current native wallet balance.
 //
-//   category amount = current balance × percent ÷ 100
+//   category amount = min(current balance × percent ÷ 100, goal)
 //   available       = category amount − pending withdrawal (never below 0)
 //
 // Amounts stay in the same on-chain wallet; categories are a tracking view.
@@ -82,6 +82,7 @@ type CategoryRule = {
   id: string; // unique per category (crypto.randomUUID() when created)
   name: string;
   percent: number; // 0–100
+  goal: number;
   icons?: string; // icon path under /public, stored with the category
   color?: string;
 };
@@ -99,7 +100,8 @@ function allocate(
   withdrawn: Record<string, number> = {}
 ): CategoryBalance[] {
   return rules.map((r) => {
-    const allocated = round7((Math.max(balance, 0) * r.percent) / 100);
+    const share = round7((Math.max(balance, 0) * r.percent) / 100);
+    const allocated = r.goal > 0 ? Math.min(share, r.goal) : share;
     const taken = withdrawn[r.id] ?? 0;
 
     return {
@@ -113,7 +115,7 @@ function allocate(
 const DEFAULT_OTTER = "/icons/otters/otter-default.svg";
 
 const CATEGORIES_PER_PAGE = 10;
-const REFRESH_MS = 30_000; // how often the balance and sales refresh
+const REFRESH_MS = 30_000; // how often the balance and transaction data refresh
 
 // Both balance routes return balances as [{ asset, issuer, balance }]
 const toSlices = (balances: { asset: string; balance: string }[]): Slice[] =>
@@ -124,7 +126,7 @@ const toSlices = (balances: { asset: string; balance: string }[]): Slice[] =>
 type Category = { id: string; name: string; amount: number };
 type Slice = { name: string; amount: number; color?: string };
 
-// Sales = money received by the wallet (incoming payments), in the network's coin
+// Incoming totals use the network's native coin.
 type Incoming = {
   id: string;
   date: string;
@@ -152,7 +154,7 @@ const toIncoming = (
     .filter((t) => Number.isFinite(t.amount));
 
 // Groups incoming payments into 7 daily or 12 monthly buckets (local time)
-function buildSales(incoming: Incoming[], range: Range) {
+function buildTransfers(incoming: Incoming[], range: Range) {
   const pad = (n: number) => String(n).padStart(2, "0");
   const dayKey = (d: Date) =>
     `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -484,6 +486,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
 
   // Category amounts are percentages of the current native balance.
   const [rules, setRules] = useState<CategoryRule[]>([]);
+  const [allGoalRules, setAllGoalRules] = useState<CategoryRule[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [page, setPage] = useState(1);
   const [pageInfo, setPageInfo] = useState({ total: 0, totalPages: 1, totalPercent: 0 });
@@ -495,7 +498,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
   // Wallet balance (pie chart), formatted by the active network's ticker
   const [walletData, setWalletData] = useState<Slice[]>([]);
   const [loadingBalance, setLoadingBalance] = useState(true);
-  const [loadingSales, setLoadingSales] = useState(true);
+  const [loadingTransfers, setLoadingTransfers] = useState(true);
   const formatAmount = useMemo(() => makeFormatter(network), [network]);
 
   const nativeSymbol = NETWORK_SYMBOL[network];
@@ -503,6 +506,10 @@ export default function Dashboard({ email, network }: DashboardProps) {
   const isEmptyWallet = !loadingBalance && nativeBalance === 0;
 
   const categories = allocate(rules, nativeBalance, withdrawn);
+  const balanceTarget = allGoalRules.length > 0 && allGoalRules.every((rule) => rule.goal > 0 && rule.percent > 0)
+    ? round7(Math.max(...allGoalRules.map((rule) => rule.goal / (rule.percent / 100))))
+    : null;
+  const allGoalsReached = balanceTarget !== null && nativeBalance >= balanceTarget;
 
   // Show the native balance by category, with any remainder left unassigned.
   const categorySlices = categories
@@ -522,9 +529,9 @@ export default function Dashboard({ email, network }: DashboardProps) {
       ];
 
   const activeRange = ranges.find((r) => r.key === range)!;
-  const salesData = useMemo(() => buildSales(incoming, range), [incoming, range]);
-  const salesTotal = round7(salesData.reduce((sum, d) => sum + d.amount, 0));
-  const salesAverage = Math.round((salesTotal / salesData.length) * 100) / 100;
+  const transferData = useMemo(() => buildTransfers(incoming, range), [incoming, range]);
+  const receivedTotal = round7(transferData.reduce((sum, d) => sum + d.amount, 0));
+  const receivedAverage = Math.round((receivedTotal / transferData.length) * 100) / 100;
 
   // Category rules come from the database (jsonb column)
   useEffect(() => {
@@ -547,6 +554,12 @@ export default function Dashboard({ email, network }: DashboardProps) {
             totalPages: d.totalPages,
             totalPercent: d.totalPercent,
           });
+          const allResponse = await Fetch_to("POST", routes.categories, {
+            email,
+            page: 1,
+            limit: 50,
+          });
+          if (!cancelled && allResponse.success) setAllGoalRules(allResponse.data.rules);
           // The server clamps the page (e.g. after categories were deleted)
           if (d.page !== page) setPage(d.page);
         }
@@ -598,7 +611,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
       // Only the first load shows "Loading balance…"; refreshes update quietly
       if (firstLoad) {
         setLoadingBalance(true);
-        setLoadingSales(true);
+        setLoadingTransfers(true);
       }
 
       // null = that request failed, so keep whatever is already on screen
@@ -645,7 +658,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
             if (complete) incomingTx = toIncoming(txs, config.symbol);
           }
         } catch {
-          // Keep the previous sales history
+          // Keep the previous transfer history
         }
       }
 
@@ -670,7 +683,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
       if (firstLoad) {
         firstLoad = false;
         setLoadingBalance(false);
-        setLoadingSales(false);
+        setLoadingTransfers(false);
       }
     };
 
@@ -698,12 +711,12 @@ export default function Dashboard({ email, network }: DashboardProps) {
           Dashboard
         </h1>
         <p className="mt-1 text-sm text-foreground/55">
-          Your wallet balance, categories and recent sales.
+          Your wallet balance, categories and recent transfers.
           {lastUpdated && ` Updated ${lastUpdated.toLocaleTimeString()}.`}
         </p>
       </header>
 
-      {/* Top row: pie (compact) + sales history (wide) */}
+      {/* Top row: wallet balance and transfer history */}
       <div className="flex flex-col gap-4 lg:flex-row">
         {/* Wallet balance */}
         <section
@@ -772,6 +785,20 @@ export default function Dashboard({ email, network }: DashboardProps) {
             </>
           )}
 
+          {!loadingBalance && (
+            <div className="mb-4 rounded-lg border border-primary/15 bg-primary/[0.04] px-3 py-2.5 text-center">
+              <p className="text-[11px] font-medium text-foreground/55">Balance target for all goals</p>
+              {balanceTarget === null ? (
+                <p className="mt-1 text-xs text-foreground/50">Set a goal and share for every category</p>
+              ) : (
+                <>
+                  <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">{formatAmount(balanceTarget)}</p>
+                  <p className="mt-0.5 text-[11px] text-foreground/50">{allGoalsReached ? "All category goals reached" : `${formatAmount(nativeBalance)} current balance`}</p>
+                </>
+              )}
+            </div>
+          )}
+
           <button
             type="button"
             onClick={() => setSelected({ id: "__all__", name: "wallet", amount: nativeBalance })}
@@ -782,29 +809,29 @@ export default function Dashboard({ email, network }: DashboardProps) {
           </button>
         </section>
 
-        {/* Sales history */}
+        {/* Transfer history */}
         <section
-          aria-labelledby="sales-title"
+          aria-labelledby="transfer-title"
           className={`${card} flex min-h-[22rem] min-w-0 flex-1 flex-col`}
         >
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 id="sales-title" className="text-sm font-semibold text-foreground">
-                Sales history
+              <h2 id="transfer-title" className="text-sm font-semibold text-foreground">
+                Transfer history
               </h2>
-              {loadingSales ? (
-                <div role="status" aria-label="Loading sales history" className="mt-2 space-y-2">
+              {loadingTransfers ? (
+                <div role="status" aria-label="Loading transfer history" className="mt-2 space-y-2">
                   <span className={`block h-7 w-32 ${skeletonClass}`} />
                   <span className={`block h-3 w-48 max-w-full ${skeletonClass}`} />
-                  <span className="sr-only">Loading sales history…</span>
+                  <span className="sr-only">Loading transfer history…</span>
                 </div>
               ) : (
                 <>
                   <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight text-foreground">
-                    {formatAmount(salesTotal)}
+                    {formatAmount(receivedTotal)}
                   </p>
                   <p className="mt-0.5 text-xs text-foreground/50">
-                    Last {activeRange.label} · avg {formatAmount(salesAverage)} {activeRange.averageLabel}
+                    Received · last {activeRange.label} · avg {formatAmount(receivedAverage)} {activeRange.averageLabel}
                   </p>
                 </>
               )}
@@ -812,7 +839,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
 
             <div
               role="group"
-              aria-label="Sales range"
+              aria-label="Transfer history range"
               className="flex gap-0.5 rounded-lg bg-foreground/5 p-0.5 text-xs"
             >
               {ranges.map((r) => (
@@ -833,12 +860,12 @@ export default function Dashboard({ email, network }: DashboardProps) {
             </div>
           </div>
 
-          {loadingSales ? (
-            <div role="status" aria-label="Loading sales chart" className={`mt-4 h-64 w-full min-w-0 sm:h-72 ${skeletonClass}`} />
+          {loadingTransfers ? (
+            <div role="status" aria-label="Loading transfer chart" className={`mt-4 h-64 w-full min-w-0 sm:h-72 ${skeletonClass}`} />
           ) : (
           <div className="mt-4 h-64 w-full min-w-0 flex-none sm:h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={salesData} margin={{ left: -12, right: 4, top: 4 }}>
+              <BarChart data={transferData} margin={{ left: -12, right: 4, top: 4 }}>
                 <CartesianGrid
                   vertical={false}
                   strokeDasharray="3 3"
@@ -854,15 +881,15 @@ export default function Dashboard({ email, network }: DashboardProps) {
                 <Tooltip
                   cursor={{ fill: "rgba(var(--primary-rgba), 0.06)" }}
                   contentStyle={tooltipStyle}
-                  formatter={(value) => [formatAmount(Number(value ?? 0)), "Sales"]}
+                  formatter={(value) => [formatAmount(Number(value ?? 0)), "Received"]}
                 />
                 <Bar dataKey="amount" radius={[4, 4, 0, 0]} maxBarSize={36}>
-                  {salesData.map((d, i) => (
+                  {transferData.map((d, i) => (
                     <Cell
                       key={d.label}
                       // Latest period at full strength, earlier ones softer
                       fill={`rgba(var(--primary-rgba), ${
-                        i === salesData.length - 1 ? 1 : 0.4
+                        i === transferData.length - 1 ? 1 : 0.4
                       })`}
                     />
                   ))}
@@ -921,7 +948,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
         ) : (
           <ul className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
             {categories.map((c, i) => {
-              const progress = c.percent;
+              const progress = c.goal > 0 ? Math.min((c.available / c.goal) * 100, 100) : 0;
 
               return (
                 <li key={c.id}>
@@ -958,7 +985,9 @@ export default function Dashboard({ email, network }: DashboardProps) {
                     <p className="mt-2 text-lg font-semibold tabular-nums tracking-tight text-foreground">
                       {formatAmount(c.available)}
                     </p>
-                    <p className="mt-0.5 text-xs text-foreground/50">of current balance</p>
+                    <p className="mt-0.5 text-xs text-foreground/50">
+                      Goal {c.goal > 0 ? formatAmount(c.goal) : "not set"}
+                    </p>
 
                     <div
                       aria-hidden="true"

@@ -9,6 +9,7 @@ type Category = {
   id: string;
   name: string;
   percent: number;
+  goal: number;
   icons: string;
   color: string;
 };
@@ -49,6 +50,7 @@ export default function Categories({ email }: CategoriesProps) {
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [percent, setPercent] = useState("");
+  const [goal, setGoal] = useState("");
   const [icon, setIcon] = useState(iconOptions[0].path);
   const [color, setColor] = useState(DEFAULT_COLOR);
   const [formError, setFormError] = useState("");
@@ -100,6 +102,7 @@ export default function Categories({ email }: CategoriesProps) {
     setEditingCategoryId(null);
     setName("");
     setPercent("");
+    setGoal("");
     setIcon(iconOptions[0].path);
     setColor(DEFAULT_COLOR);
     setFormError("");
@@ -131,6 +134,7 @@ export default function Categories({ email }: CategoriesProps) {
     event.preventDefault();
     const cleanName = name.trim();
     const share = Number(percent);
+    const target = Number(goal);
 
     if (!cleanName) {
       setFormError("Enter a category name.");
@@ -140,11 +144,16 @@ export default function Categories({ email }: CategoriesProps) {
       setFormError(`Choose a share from 1% to ${formAvailablePercent}%.`);
       return;
     }
+    if (!Number.isFinite(target) || target <= 0) {
+      setFormError("Enter a goal amount greater than zero.");
+      return;
+    }
 
     const updated: Category = {
       id: editingCategoryId ?? crypto.randomUUID(),
       name: cleanName,
       percent: share,
+      goal: target,
       icons: icon,
       color,
     };
@@ -169,6 +178,7 @@ export default function Categories({ email }: CategoriesProps) {
     setEditingCategoryId(category.id);
     setName(category.name);
     setPercent(String(category.percent));
+    setGoal(category.goal > 0 ? String(category.goal) : "");
     setIcon(category.icons);
     setColor(category.color || DEFAULT_COLOR);
     setFormError("");
@@ -193,7 +203,7 @@ export default function Categories({ email }: CategoriesProps) {
           <p className="text-sm font-medium text-primary">Wallet planning</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Categories</h1>
           <p className="mt-1 text-sm text-foreground/55">
-            Choose what percentage of your current wallet balance to track in each category.
+            Set a balance share and a target amount for each category.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -251,9 +261,9 @@ export default function Categories({ email }: CategoriesProps) {
       </header>
 
       <aside className="rounded-xl border border-primary/15 bg-primary/[0.05] px-4 py-3.5 text-sm leading-6 text-foreground/65">
-        <p className="font-semibold text-foreground">How category shares work</p>
+        <p className="font-semibold text-foreground">How category shares and goals work</p>
         <p className="mt-1">
-          Each category shows its percentage of your current wallet balance. For example, with 10 units in your wallet, a 40% category shows 4 units. Category amounts are a tracking view; funds are not moved into separate on-chain wallets.
+          Each category tracks its percentage of your current wallet balance until it reaches its goal. After that, its share stays unassigned. The balance target below the dashboard pie shows how much the wallet needs for every goal to be reached. These are tracking amounts; funds are not moved into separate on-chain wallets.
         </p>
       </aside>
 
@@ -387,7 +397,7 @@ export default function Categories({ email }: CategoriesProps) {
                     <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-foreground/8">
                       <div className="h-full rounded-full" style={{ width: `${category.percent}%`, backgroundColor: category.color || DEFAULT_COLOR }} />
                     </div>
-                    <p className="mt-2 text-xs text-foreground/45">of current balance</p>
+                    <p className="mt-2 text-xs text-foreground/45">Goal: {category.goal > 0 ? category.goal : "Not set"}</p>
                   </div>
                   {editing && (
                     <div className="flex justify-end">
@@ -452,7 +462,7 @@ export default function Categories({ email }: CategoriesProps) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 id="add-category-title" className="text-lg font-semibold">{editingCategoryId ? "Edit category" : "Add category"}</h2>
-                <p className="mt-1 text-sm text-foreground/55">Choose the percentage of your current balance to show in this category.</p>
+                <p className="mt-1 text-sm text-foreground/55">Track a share of your balance until this category reaches its goal.</p>
               </div>
               <button
                 type="button"
@@ -513,6 +523,15 @@ export default function Categories({ email }: CategoriesProps) {
                   placeholder="e.g. Savings"
                   className="mt-1.5 w-full rounded-lg border border-foreground/15 bg-background px-3 py-2.5 text-sm font-normal outline-none placeholder:text-foreground/35 focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
                 />
+              </label>
+
+              <label className="block rounded-xl border border-primary/20 bg-primary/[0.04] p-3 text-sm font-medium" htmlFor="category-goal">
+                Goal amount
+                <div className="relative mt-1.5">
+                  <input id="category-goal" type="number" min="0.0000001" step="any" required value={goal} onChange={(event) => setGoal(event.target.value)} placeholder="e.g. 10" className="w-full rounded-lg border border-foreground/15 bg-background px-3 py-2.5 pr-16 text-sm font-normal outline-none placeholder:text-foreground/35 focus:border-primary/50 focus:ring-2 focus:ring-primary/20" />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-foreground/45">wallet units</span>
+                </div>
+                <span className="mt-1 block text-xs font-normal text-foreground/45">The category stops growing when it reaches this amount.</span>
               </label>
 
               <div className="grid gap-4">

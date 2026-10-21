@@ -24,6 +24,15 @@ export async function PATCH(params: NextRequest) {
       return NextResponse.json({ success: false, error: "Category colors must be 6-digit hex values" }, { status: 400 });
     }
 
+    const invalidGoal = category.some((item: unknown) => {
+      if (!item || typeof item !== "object") return true;
+      const goal = Number((item as Record<string, unknown>).goal ?? 0);
+      return !Number.isFinite(goal) || goal < 0;
+    });
+    if (invalidGoal) {
+      return NextResponse.json({ success: false, error: "Category goals must be zero or greater" }, { status: 400 });
+    }
+
     const percentages = category.map((item: unknown) => {
       if (!item || typeof item !== "object") return Number.NaN;
       return Number((item as Record<string, unknown>).percent);
