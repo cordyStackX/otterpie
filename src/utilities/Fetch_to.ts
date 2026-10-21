@@ -28,7 +28,7 @@ export default async function Fetch_to(
 		const data = await response.json().catch(() => null); // safe parse
 
 		if (response.ok) {
-			console.log("Status for fetch: ", data);
+			
 			return { success: true, data }; // success
 		} else {
 			console.log(data?.error);
