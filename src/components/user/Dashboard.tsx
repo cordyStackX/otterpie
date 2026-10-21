@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import {
   PieChart,
   Pie,
@@ -49,7 +48,10 @@ const makeFormatter = (symbol: string): FormatAmount => {
 };
 
 const compact = (value: number) =>
-  value >= 1000 ? `${value / 1000}k` : String(value);
+  new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumSignificantDigits: 3,
+  }).format(value);
 
 const tooltipStyle = {
   borderRadius: 8,
@@ -1011,14 +1013,20 @@ export default function Dashboard({ email, network }: DashboardProps) {
                     style={{ borderLeftColor: c.color || colorForIndex(i) }}
                   >
                     {/* Otter mascot as a soft background on the right of the card */}
-                    <Image
-                      src={c.icons || DEFAULT_OTTER}
-                      alt=""
-                      width={112}
-                      height={112}
-                      unoptimized
+                    <div
                       aria-hidden="true"
-                      className="pointer-events-none absolute -bottom-4 -right-3 -z-10 h-28 w-28 opacity-30"
+                      className="pointer-events-none absolute -bottom-4 -right-3 -z-10 h-28 w-28 opacity-35"
+                      style={{
+                        backgroundColor: c.color || colorForIndex(i),
+                        maskImage: `url("${c.icons || DEFAULT_OTTER}")`,
+                        WebkitMaskImage: `url("${c.icons || DEFAULT_OTTER}")`,
+                        maskRepeat: "no-repeat",
+                        WebkitMaskRepeat: "no-repeat",
+                        maskPosition: "center",
+                        WebkitMaskPosition: "center",
+                        maskSize: "contain",
+                        WebkitMaskSize: "contain",
+                      }}
                     />
 
                     <div className="flex items-center justify-between gap-2">
