@@ -773,18 +773,6 @@ export default function Dashboard({ email, network }: DashboardProps) {
                   </p>
                 </div>
               </div>
-              {!isEmptyWallet && pieData.length > 0 && (
-                <ul aria-label="Wallet balance by category" className="mt-2 max-h-20 space-y-1 overflow-y-auto">
-                  {pieData.map((slice) => (
-                    <li key={slice.name} className="flex min-w-0 items-center justify-between gap-2 text-xs">
-                      <span className="min-w-0 flex-1 truncate text-foreground/65">{slice.name}</span>
-                      <span className="shrink-0 tabular-nums text-foreground/80">
-                        {formatAmount(slice.amount)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
             </>
           )}
 
