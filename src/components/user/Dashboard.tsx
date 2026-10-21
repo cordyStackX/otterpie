@@ -225,7 +225,6 @@ function WithdrawDialog({
   asset,
   network,
   email,
-  withdrawAll = false,
   formatAmount,
   onClose,
   onWithdrawn,
@@ -234,7 +233,6 @@ function WithdrawDialog({
   asset: string;
   network: string;
   email: string;
-  withdrawAll?: boolean;
   formatAmount: FormatAmount;
   onClose: () => void;
   onWithdrawn: (id: string, amount: number) => void;
@@ -262,7 +260,7 @@ function WithdrawDialog({
       setError("Enter your account password to confirm this transfer.");
       return;
     }
-    if (!withdrawAll && (!Number.isFinite(amountNumber) || amountNumber <= 0 || amountNumber > balance)) {
+    if (!Number.isFinite(amountNumber) || amountNumber <= 0 || amountNumber > balance) {
       setError("Enter an amount greater than zero and no more than the available balance.");
       return;
     }
@@ -282,7 +280,6 @@ function WithdrawDialog({
       const response = await Fetch_to("POST", endpoint, {
         address: trimmed,
         amount: amount.trim(),
-        withdrawAll,
         asset,
         password,
         email,
@@ -292,7 +289,7 @@ function WithdrawDialog({
       setSentTo(trimmed);
       setTxHash(result.txHash || "");
       if (result.amount) setAmount(result.amount);
-      if (!withdrawAll) onWithdrawn(category.id, amountNumber);
+      if (category.id !== "__wallet__") onWithdrawn(category.id, amountNumber);
       setStatus("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "The transfer could not be submitted.");
@@ -343,7 +340,7 @@ function WithdrawDialog({
               Transfer submitted
             </h2>
             <p className="mt-1.5 text-sm text-foreground/60">
-              {formatAmount(Number(amount))} from {category.name} was submitted to{" "}
+              {formatAmount(Number(amount))} was submitted to{" "}
               <span className="font-mono text-foreground">{shortAddress(sentTo)}</span>.
             </p>
             {txHash && <p className="mt-2 break-all font-mono text-xs text-foreground/50">Transaction: {txHash}</p>}
@@ -360,7 +357,7 @@ function WithdrawDialog({
           <form onSubmit={handleSubmit} noValidate>
             <div className="flex items-start justify-between gap-4">
               <h2 id="withdraw-title" className="text-lg font-semibold tracking-tight">
-                {withdrawAll ? `Transfer all ${asset}` : `Transfer ${asset} from ${category.name}`}
+                {category.id === "__wallet__" ? `Withdraw ${asset}` : `Withdraw ${asset} from ${category.name}`}
               </h2>
               <button
                 type="button"
@@ -387,41 +384,29 @@ function WithdrawDialog({
             </div>
 
             <div className="mt-4 rounded-lg bg-foreground/5 px-4 py-3">
-              <p className="text-xs text-foreground/55">{asset === "PIE" ? "Available to transfer" : "Available to withdraw"}</p>
+              <p className="text-xs text-foreground/55">Available to withdraw</p>
               <p className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight">
                 {formatAmount(balance)}
               </p>
             </div>
 
-            {withdrawAll && (
-              <p className="mt-2 text-xs text-foreground/50">
-                {asset === "PIE"
-                  ? "All PIE will be sent. BOT in this wallet pays the network fee."
-                  : `The network will calculate the maximum sendable amount after reserving fees${network === "stellar" ? " and Stellar's minimum account balance" : ""}.`}
-              </p>
-            )}
-
-            {!withdrawAll && (
-              <>
-                <label htmlFor="withdraw-amount" className="mt-5 block text-sm font-medium text-foreground">
-                  Amount ({asset})
-                </label>
-                <input
-                  id="withdraw-amount"
-                  type="number"
-                  min="0"
-                  max={balance}
-                  step={asset === "XLM" ? "0.0000001" : "any"}
-                  value={amount}
-                  onChange={(e) => {
-                    setAmount(e.target.value);
-                    if (error) setError("");
-                  }}
-                  disabled={submitting || balance === 0}
-                  className="mt-1.5 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/25 disabled:opacity-50"
-                />
-              </>
-            )}
+            <label htmlFor="withdraw-amount" className="mt-5 block text-sm font-medium text-foreground">
+              Amount ({asset})
+            </label>
+            <input
+              id="withdraw-amount"
+              type="number"
+              min="0"
+              max={balance}
+              step={asset === "XLM" ? "0.0000001" : "any"}
+              value={amount}
+              onChange={(e) => {
+                setAmount(e.target.value);
+                if (error) setError("");
+              }}
+              disabled={submitting || balance === 0}
+              className="mt-1.5 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/25 disabled:opacity-50"
+            />
 
             <label
               htmlFor="wallet-address"
@@ -865,24 +850,24 @@ export default function Dashboard({ email, network }: DashboardProps) {
               </button>
             )}
             <div className="flex w-full gap-2">
-              {!isPieSelected && (
-                <button
-                  type="button"
-                  onClick={() => setSelected({ id: "__all__", name: "wallet", amount: nativeBalance })}
-                  disabled={loadingBalance || nativeBalance <= 0 || !activeSymbol}
-                  className="min-w-0 flex-1 rounded-md border border-primary/30 px-2 py-2 text-xs font-medium text-primary outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
-                >
-                  Withdraw all BOT
-                </button>
-              )}
               <button
                 type="button"
-                onClick={() => setSwapDirection(isPieSelected ? { from: "PIE", to: "BOT" } : { from: "BOT", to: "PIE" })}
-                disabled={loadingBalance || nativeBalance <= 0}
-                className="min-w-0 flex-1 rounded-md border border-emerald-400/50 bg-emerald-500/15 px-2 py-2 text-xs font-semibold text-emerald-300 outline-none transition-colors hover:bg-emerald-500/25 focus-visible:ring-2 focus-visible:ring-emerald-300/50 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
+                onClick={() => setSelected({ id: "__wallet__", name: "wallet", amount: nativeBalance })}
+                disabled={loadingBalance || nativeBalance <= 0 || !activeSymbol}
+                className="min-w-0 flex-1 rounded-md border border-primary/30 px-2 py-2 text-xs font-medium text-primary outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
               >
-                Swap {isPieSelected ? "PIE to BOT" : "BOT to PIE"}
+                Withdraw
               </button>
+              {isBotChainNetwork(network) && (
+                <button
+                  type="button"
+                  onClick={() => setSwapDirection(isPieSelected ? { from: "PIE", to: "BOT" } : { from: "BOT", to: "PIE" })}
+                  disabled={loadingBalance || nativeBalance <= 0}
+                  className="min-w-0 flex-1 rounded-md border border-emerald-400/50 bg-emerald-500/15 px-2 py-2 text-xs font-semibold text-emerald-300 outline-none transition-colors hover:bg-emerald-500/25 focus-visible:ring-2 focus-visible:ring-emerald-300/50 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
+                >
+                  Swap {isPieSelected ? "PIE to BOT" : "BOT to PIE"}
+                </button>
+              )}
             </div>
           </div>
         </section>
@@ -1130,7 +1115,6 @@ export default function Dashboard({ email, network }: DashboardProps) {
           email={email}
           onClose={() => setSelected(null)}
           network={network}
-          withdrawAll={selected.id === "__all__"}
           onWithdrawn={(id, amount) =>
             setWithdrawn((prev) => ({
               ...prev,
