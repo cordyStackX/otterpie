@@ -36,6 +36,7 @@ const colorOptions = [
 ];
 const DEFAULT_COLOR = colorOptions[0].value;
 const CATEGORIES_PER_PAGE = 10;
+const skeletonClass = "animate-pulse motion-reduce:animate-none rounded-md bg-foreground/10";
 
 const card = "rounded-xl border border-foreground/10 bg-background";
 
@@ -268,17 +269,23 @@ export default function Categories({ email }: CategoriesProps) {
       <section aria-label="Category allocation summary" className="grid gap-3 sm:grid-cols-3">
         <div className={`${card} p-4`}>
           <p className="text-xs font-medium text-foreground/50">Categories</p>
-          <p className="mt-2 text-2xl font-semibold tabular-nums">{categories.length}</p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums">
+            {loading ? <span aria-hidden="true" className={`inline-block h-7 w-12 align-middle ${skeletonClass}`} /> : categories.length}
+          </p>
           <p className="mt-1 text-xs text-foreground/45">Your active fund goals</p>
         </div>
         <div className={`${card} p-4`}>
           <p className="text-xs font-medium text-foreground/50">Allocated</p>
-          <p className="mt-2 text-2xl font-semibold tabular-nums">{totalPercent}%</p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums">
+            {loading ? <span aria-hidden="true" className={`inline-block h-7 w-16 align-middle ${skeletonClass}`} /> : `${totalPercent}%`}
+          </p>
           <p className="mt-1 text-xs text-foreground/45">of 100% maximum</p>
         </div>
         <div className={`${card} p-4`}>
           <p className="text-xs font-medium text-foreground/50">Unassigned</p>
-          <p className="mt-2 text-2xl font-semibold tabular-nums">{remainingPercent}%</p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums">
+            {loading ? <span aria-hidden="true" className={`inline-block h-7 w-16 align-middle ${skeletonClass}`} /> : `${remainingPercent}%`}
+          </p>
           <p className="mt-1 text-xs text-foreground/45">Available to allocate</p>
         </div>
       </section>
@@ -290,12 +297,28 @@ export default function Categories({ email }: CategoriesProps) {
             <p className="mt-1 text-xs text-foreground/50">Deductions apply to incoming wallet funds.</p>
           </div>
           <span className="rounded-full bg-foreground/5 px-2.5 py-1 text-xs tabular-nums text-foreground/60">
-            {categories.length}
+            {loading ? <span aria-hidden="true" className={`inline-block h-3 w-5 align-middle ${skeletonClass}`} /> : categories.length}
           </span>
         </div>
 
         {loading ? (
-          <p className="px-5 py-16 text-center text-sm text-foreground/50">Loading categories…</p>
+          <div role="status" aria-label="Loading categories" className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} aria-hidden="true" className="rounded-xl border border-foreground/10 p-4">
+                <div className="flex items-center gap-3">
+                  <span className={`h-11 w-11 shrink-0 rounded-xl ${skeletonClass}`} />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <span className={`block h-4 w-3/4 ${skeletonClass}`} />
+                    <span className={`block h-3 w-1/2 ${skeletonClass}`} />
+                  </div>
+                  <span className={`h-6 w-12 ${skeletonClass}`} />
+                </div>
+                <span className={`mt-4 block h-1.5 w-full rounded-full ${skeletonClass}`} />
+                <span className={`mt-2 block h-3 w-2/3 ${skeletonClass}`} />
+              </div>
+            ))}
+            <span className="sr-only">Loading categories…</span>
+          </div>
         ) : categories.length === 0 ? (
           <div className="px-5 py-16 text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">

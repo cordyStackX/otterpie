@@ -68,6 +68,7 @@ const tooltipStyle = {
 const tick = { fill: "var(--foreground)", fontSize: 12, opacity: 0.55 };
 
 const card = "rounded-xl border border-foreground/10 bg-background p-5";
+const skeletonClass = "animate-pulse motion-reduce:animate-none rounded-md bg-foreground/10";
 
 // ---------------------------------------------------------------------------
 // Category allocation: each category takes a percentage of everything the
@@ -513,6 +514,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
   // Wallet balance (pie chart), formatted by the active network's ticker
   const [walletData, setWalletData] = useState<Slice[]>([]);
   const [loadingBalance, setLoadingBalance] = useState(true);
+  const [loadingSales, setLoadingSales] = useState(true);
   const formatAmount = useMemo(() => makeFormatter(network), [network]);
 
   const walletTotal = walletData.reduce((sum, d) => sum + d.amount, 0);
@@ -627,7 +629,10 @@ export default function Dashboard({ email, network }: DashboardProps) {
       inFlight = true;
 
       // Only the first load shows "Loading balance…"; refreshes update quietly
-      if (firstLoad) setLoadingBalance(true);
+      if (firstLoad) {
+        setLoadingBalance(true);
+        setLoadingSales(true);
+      }
 
       // null = that request failed, so keep whatever is already on screen
       let slices: Slice[] | null = null;
@@ -662,6 +667,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
       if (firstLoad) {
         firstLoad = false;
         setLoadingBalance(false);
+        setLoadingSales(false);
       }
     };
 
@@ -706,9 +712,19 @@ export default function Dashboard({ email, network }: DashboardProps) {
           </h2>
 
           {loadingBalance ? (
-            <p className="flex flex-1 items-center justify-center text-sm text-foreground/50">
-              Loading balance…
-            </p>
+            <div role="status" aria-label="Loading wallet balance" className="flex flex-1 flex-col items-center justify-center">
+              <span className="sr-only">Loading wallet balance…</span>
+              <div aria-hidden="true" className={`flex h-48 w-48 items-center justify-center rounded-full border-[14px] border-foreground/10 sm:h-56 sm:w-56 ${skeletonClass}`}>
+                <div className="flex flex-col items-center gap-2">
+                  <span className={`h-3 w-16 ${skeletonClass}`} />
+                  <span className={`h-6 w-28 ${skeletonClass}`} />
+                </div>
+              </div>
+              <div aria-hidden="true" className="mt-3 w-full max-w-64 space-y-2">
+                <span className={`block h-3 w-full ${skeletonClass}`} />
+                <span className={`block h-3 w-4/5 ${skeletonClass}`} />
+              </div>
+            </div>
           ) : (
             <>
               <div className="relative mt-2 h-56 w-full flex-none sm:h-64">
@@ -794,13 +810,22 @@ export default function Dashboard({ email, network }: DashboardProps) {
               <h2 id="sales-title" className="text-sm font-semibold text-foreground">
                 Sales history
               </h2>
-              <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight text-foreground">
-                {formatAmount(salesTotal)}
-              </p>
-              <p className="mt-0.5 text-xs text-foreground/50">
-                Last {activeRange.label} · avg {formatAmount(salesAverage)}{" "}
-                {activeRange.averageLabel}
-              </p>
+              {loadingSales ? (
+                <div role="status" aria-label="Loading sales history" className="mt-2 space-y-2">
+                  <span className={`block h-7 w-32 ${skeletonClass}`} />
+                  <span className={`block h-3 w-48 max-w-full ${skeletonClass}`} />
+                  <span className="sr-only">Loading sales history…</span>
+                </div>
+              ) : (
+                <>
+                  <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight text-foreground">
+                    {formatAmount(salesTotal)}
+                  </p>
+                  <p className="mt-0.5 text-xs text-foreground/50">
+                    Last {activeRange.label} · avg {formatAmount(salesAverage)} {activeRange.averageLabel}
+                  </p>
+                </>
+              )}
             </div>
 
             <div
@@ -826,6 +851,9 @@ export default function Dashboard({ email, network }: DashboardProps) {
             </div>
           </div>
 
+          {loadingSales ? (
+            <div role="status" aria-label="Loading sales chart" className={`mt-4 h-64 w-full min-w-0 sm:h-72 ${skeletonClass}`} />
+          ) : (
           <div className="mt-4 h-64 w-full min-w-0 flex-none sm:h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={salesData} margin={{ left: -12, right: 4, top: 4 }}>
@@ -860,6 +888,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
               </BarChart>
             </ResponsiveContainer>
           </div>
+          )}
         </section>
       </div>
 
@@ -868,9 +897,11 @@ export default function Dashboard({ email, network }: DashboardProps) {
         <div className="mb-3 flex items-baseline justify-between">
           <h2 id="categories-title" className="text-sm font-semibold text-foreground">
             Categories
-            <span className="ml-2 font-normal text-foreground/45">
-              {pageInfo.total}
-            </span>
+            {loadingCategories ? (
+              <span aria-hidden="true" className={`ml-2 inline-block h-3 w-6 align-middle ${skeletonClass}`} />
+            ) : (
+              <span className="ml-2 font-normal text-foreground/45">{pageInfo.total}</span>
+            )}
           </h2>
           <Link
             href="/user/add-category"
@@ -881,9 +912,20 @@ export default function Dashboard({ email, network }: DashboardProps) {
         </div>
 
         {loadingCategories ? (
-          <p className="py-8 text-center text-sm text-foreground/50">
-            Loading categories…
-          </p>
+          <div role="status" aria-label="Loading dashboard categories" className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
+            {Array.from({ length: Math.min(CATEGORIES_PER_PAGE, 4) }).map((_, index) => (
+              <div key={index} aria-hidden="true" className="rounded-xl border border-foreground/10 bg-background px-4 py-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`h-4 w-2/3 ${skeletonClass}`} />
+                  <span className={`h-3 w-8 ${skeletonClass}`} />
+                </div>
+                <span className={`mt-4 block h-6 w-1/2 ${skeletonClass}`} />
+                <span className={`mt-2 block h-3 w-1/3 ${skeletonClass}`} />
+                <span className={`mt-3 block h-1 w-full ${skeletonClass}`} />
+              </div>
+            ))}
+            <span className="sr-only">Loading categories…</span>
+          </div>
         ) : categories.length === 0 ? (
           <div className="rounded-xl border border-dashed border-foreground/15 p-8 text-center text-sm text-foreground/60">
             You haven&rsquo;t added any categories yet.{" "}

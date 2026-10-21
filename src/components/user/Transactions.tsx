@@ -23,6 +23,7 @@ type TransactionProps = {
 
 type Filter = "All" | "Withdraw" | "Receive";
 const filters: Filter[] = ["All", "Withdraw", "Receive"];
+const skeletonClass = "animate-pulse motion-reduce:animate-none rounded-md bg-foreground/10";
 
 const cardClass = "rounded-xl border border-foreground/10 bg-background";
 
@@ -171,21 +172,31 @@ export default function Transactions({ email, network } : TransactionProps) {
       <section aria-label="Transaction summary" className="grid gap-3 sm:grid-cols-3">
         <div className={`${cardClass} p-4`}>
           <p className="text-xs font-medium text-foreground/50">Transactions on this page</p>
-          <p className="mt-2 text-2xl font-semibold tabular-nums">{transactions.length}</p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums">
+            {loading ? <span aria-hidden="true" className={`inline-block h-7 w-10 align-middle ${skeletonClass}`} /> : transactions.length}
+          </p>
           <p className="mt-1 text-xs text-foreground/45">Up to 10 loaded at a time</p>
         </div>
         <div className={`${cardClass} p-4`}>
           <p className="text-xs font-medium text-foreground/50">Completed on this page</p>
-          <p className="mt-2 text-2xl font-semibold tabular-nums">{completedCount}</p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums">
+            {loading ? <span aria-hidden="true" className={`inline-block h-7 w-10 align-middle ${skeletonClass}`} /> : completedCount}
+          </p>
           <p className="mt-1 text-xs text-foreground/45">Successfully processed</p>
         </div>
         <div className={`${cardClass} p-4`}>
           <p className="text-xs font-medium text-foreground/50">Received on this page</p>
           <p className="mt-2 text-2xl font-semibold tabular-nums">
-            {new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(receivedTotal)}
-            <span className="ml-1.5 text-sm font-medium text-foreground/50">
-              {network === "bot_chain" ? "BOT" : "XLM"}
-            </span>
+            {loading ? (
+              <span aria-hidden="true" className={`inline-block h-7 w-28 align-middle ${skeletonClass}`} />
+            ) : (
+              <>
+                {new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(receivedTotal)}
+                <span className="ml-1.5 text-sm font-medium text-foreground/50">
+                  {network === "bot_chain" ? "BOT" : "XLM"}
+                </span>
+              </>
+            )}
           </p>
           <p className="mt-1 text-xs text-foreground/45">Completed incoming payments</p>
         </div>
@@ -233,7 +244,36 @@ export default function Transactions({ email, network } : TransactionProps) {
         </div>
 
         {loading ? (
-          <p className="px-5 py-16 text-center text-sm text-foreground/50">Loading transactions…</p>
+          <div role="status" aria-label="Loading transactions">
+            <span className="sr-only">Loading transactions…</span>
+            <div aria-hidden="true" className="divide-y divide-foreground/8 md:hidden">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <div key={index} className="flex items-center justify-between gap-3 p-4">
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <span className={`h-9 w-9 shrink-0 rounded-full ${skeletonClass}`} />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <span className={`block h-4 w-2/3 ${skeletonClass}`} />
+                      <span className={`block h-3 w-1/2 ${skeletonClass}`} />
+                    </div>
+                  </div>
+                  <span className={`h-4 w-16 shrink-0 ${skeletonClass}`} />
+                </div>
+              ))}
+            </div>
+            <div aria-hidden="true" className="hidden overflow-hidden md:block">
+              <div className="space-y-0 divide-y divide-foreground/8">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <div key={index} className="grid grid-cols-[1.5fr_1fr_0.7fr_0.7fr_1fr] items-center gap-4 px-5 py-5">
+                    <span className={`h-4 w-3/4 ${skeletonClass}`} />
+                    <span className={`h-4 w-2/3 ${skeletonClass}`} />
+                    <span className={`h-5 w-16 rounded-full ${skeletonClass}`} />
+                    <span className={`ml-auto h-4 w-20 ${skeletonClass}`} />
+                    <span className={`h-4 w-3/4 ${skeletonClass}`} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         ) : error ? (
           <p role="alert" className="px-5 py-16 text-center text-sm text-rose-600">{error}</p>
         ) : visibleTransactions.length === 0 ? (
