@@ -1,3 +1,27 @@
 {
-  "token_address" : "0x5C56582e1Fbbb9bf6B03dE9A4507D2CA28af6cE7"
+  "tokens": [
+    {
+      "id": "bot-chain-pie",
+      "walletNetwork": "bot_chain",
+      "token_address": "0x5C56582e1Fbbb9bf6B03dE9A4507D2CA28af6cE7",
+      "name": "Otterpie",
+      "symbol": "PIE",
+      "chainName": "BOT Chain",
+      "logoPath": "/logo.svg",
+      "explorerTokenUrlTemplate": "https://scan.botchain.ai/token/{address}",
+      "poolUrlTemplate": "https://dex.botchain.ai/pool/v2/0xa7a7796b5ec5ea2fdec1f94a3e71fa027f7cf45b/{address}/BOT",
+      "poolButtonLabel": "View PIE / BOT pool",
+      "exchangeRate": {
+        "endpoint": "/services/supabase/user/swap",
+        "tokenToQuoteField": "pieToBot",
+        "quoteToTokenField": "botToPie",
+        "baseSymbol": "PIE",
+        "quoteSymbol": "BOT",
+        "baseLabel": "1 PIE in BOT",
+        "quoteLabel": "1 BOT in PIE",
+        "refreshIntervalMs": 30000,
+        "disclaimer": "This is based on pool reserves; a swap rate can differ because of fees and price impact."
+      }
+    }
+  ]
 }

@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Fetch_to } from "@/utilities";
-import { isBotChainNetwork, walletNetworkLabel } from "@/utilities/network";
-import routes from "@/routes/user.json";
+import { getWalletNetworkConfig, walletAssetLabel, walletNetworkLabel } from "@/utilities/network";
 
 type Transaction = {
   id: string;
@@ -27,8 +26,9 @@ type TransactionProps = {
 }
 
 type Filter = "All" | "Withdraw" | "Receive" | "Swap";
-type TransactionCursors = { BOT: string | null; PIE: string | null; XLM: string | null };
-const emptyCursors = (): TransactionCursors => ({ BOT: null, PIE: null, XLM: null });
+type TransactionCursors = Record<string, string | null>;
+const emptyCursors = (assets: string[] = []): TransactionCursors =>
+  Object.fromEntries(assets.map((asset) => [asset, null]));
 const filters: Filter[] = ["All", "Withdraw", "Receive", "Swap"];
 const skeletonClass = "animate-pulse motion-reduce:animate-none rounded-md bg-foreground/10";
 
@@ -38,21 +38,21 @@ const shortAddress = (address: string) =>
   address.length > 15 ? `${address.slice(0, 7)}…${address.slice(-5)}` : address;
 
 const explorerUrl = (network: string, hash: string) => {
-  const encodedHash = encodeURIComponent(hash);
-  if (network === "stellar") return `https://stellar.expert/explorer/public/tx/${encodedHash}`;
-  if (isBotChainNetwork(network)) return `https://scan.botchain.ai/tx/${encodedHash}`;
-  return null;
+  const explorer = getWalletNetworkConfig(network)?.explorer;
+  return explorer?.transactionUrlTemplate.replace("{hash}", encodeURIComponent(hash)) ?? null;
 };
 
 const explorerName = (network: string) =>
-  network === "stellar" ? "Stellar Expert" : "BOT Chain Explorer";
+  getWalletNetworkConfig(network)?.explorer.name ?? "network explorer";
 
 export default function Transactions({ email, network } : TransactionProps) {
+  const networkConfig = getWalletNetworkConfig(network);
+  const transactionAssets = networkConfig?.transactionAssets ?? [];
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("All");
   const [page, setPage] = useState(1);
-  const [cursor, setCursor] = useState<TransactionCursors>(emptyCursors);
+  const [cursor, setCursor] = useState<TransactionCursors>(() => emptyCursors(transactionAssets));
   const [cursorHistory, setCursorHistory] = useState<TransactionCursors[]>([]);
   const [nextCursor, setNextCursor] = useState<TransactionCursors | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -61,13 +61,13 @@ export default function Transactions({ email, network } : TransactionProps) {
 
   useEffect(() => {
     setPage(1);
-    setCursor(emptyCursors());
+    setCursor(emptyCursors(transactionAssets));
     setCursorHistory([]);
     setNextCursor(null);
     setHasMore(false);
     setSearch("");
     setFilter("All");
-  }, [email, network]);
+  }, [email, network, transactionAssets]);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,11 +75,7 @@ export default function Transactions({ email, network } : TransactionProps) {
     const loadTransactions = async () => {
       if (!email || !network) return;
 
-      const route = network === "stellar"
-        ? routes.stellar_transactions
-        : isBotChainNetwork(network)
-          ? routes.bot_chain_transactions
-          : null;
+      const route = networkConfig?.routes.transactions;
 
       if (!route) {
         setTransactions([]);
@@ -94,7 +90,7 @@ export default function Transactions({ email, network } : TransactionProps) {
       setError("");
 
       try {
-        const assets: (keyof TransactionCursors)[] = isBotChainNetwork(network) ? ["BOT", "PIE"] : ["XLM"];
+        const assets = transactionAssets;
         const responses = await Promise.all(assets.map((asset) =>
           Fetch_to("POST", route, { email, cursor: cursor[asset], asset })
         ));
@@ -178,7 +174,7 @@ export default function Transactions({ email, network } : TransactionProps) {
           ...swaps,
         ].sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
 
-        const updatedCursors = emptyCursors();
+        const updatedCursors = emptyCursors(assets);
         responses.forEach((response, index) => {
           updatedCursors[assets[index]] = response.data?.nextCursor ?? null;
         });
@@ -205,7 +201,7 @@ export default function Transactions({ email, network } : TransactionProps) {
     return () => {
       cancelled = true;
     };
-  }, [email, network, cursor]);
+  }, [email, network, cursor, networkConfig, transactionAssets]);
 
   const query = search.trim().toLowerCase();
   const visibleTransactions = transactions.filter((transaction) =>
@@ -228,7 +224,7 @@ export default function Transactions({ email, network } : TransactionProps) {
           <p className="text-sm font-medium text-primary">Wallet activity</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Transactions</h1>
           <p className="mt-1 text-sm text-foreground/55">
-            Browse recent {walletNetworkLabel(network)} activity{isBotChainNetwork(network) ? " for BOT and PIE" : ""}.
+            Browse recent {walletNetworkLabel(network)} activity{transactionAssets.length ? ` for ${transactionAssets.join(" and ")}` : ""}.
           </p>
         </div>
         <button
@@ -397,7 +393,7 @@ export default function Transactions({ email, network } : TransactionProps) {
                         </div>
                       </td>
                       <td className="px-5 py-4 text-sm text-foreground/65">{formatDate(transaction.date)}</td>
-                      <td className="px-5 py-4"><TokenBadge transaction={transaction} /></td>
+                      <td className="px-5 py-4"><TokenBadge transaction={transaction} network={network} /></td>
                       <td className="px-5 py-4"><StatusBadge status={transaction.status} /></td>
                       <td className="px-5 py-4 text-right text-sm font-semibold tabular-nums">
                         <TransactionAmount transaction={transaction} />
@@ -422,7 +418,7 @@ export default function Transactions({ email, network } : TransactionProps) {
               <button
                 type="button"
                 onClick={() => {
-                  const previousCursor = cursorHistory[cursorHistory.length - 1] ?? emptyCursors();
+                  const previousCursor = cursorHistory[cursorHistory.length - 1] ?? emptyCursors(transactionAssets);
                   setCursorHistory((history) => history.slice(0, -1));
                   setCursor(previousCursor);
                   setPage((current) => Math.max(1, current - 1));
@@ -474,7 +470,7 @@ function TransactionCard({ transaction, network }: { transaction: Transaction; n
       <div className="mt-3 flex items-center justify-between gap-3 pl-12">
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-xs text-foreground/50">{formatDate(transaction.date)}</p>
-          <TokenBadge transaction={transaction} />
+          <TokenBadge transaction={transaction} network={network} />
         </div>
         <StatusBadge status={transaction.status} />
       </div>
@@ -503,10 +499,10 @@ function ExplorerLink({ network, hash }: { network: string; hash: string }) {
   );
 }
 
-function TokenBadge({ transaction }: { transaction: Transaction }) {
+function TokenBadge({ transaction, network }: { transaction: Transaction; network: string }) {
   const label = transaction.type === "Swap" && transaction.assetIn && transaction.assetOut
     ? `${transaction.assetIn} → ${transaction.assetOut}`
-    : transaction.asset === "XLM" ? "XLM · Stellar" : transaction.asset;
+    : walletAssetLabel(network, transaction.asset);
   return (
     <span className="inline-flex rounded-md bg-foreground/5 px-2 py-1 text-xs font-medium text-foreground/70">
       {label}

@@ -3,6 +3,14 @@ import { Fetch_to } from "@/utilities";
 import { useState, FormEvent } from "react";
 import { Button, Logo, TextField, ReceiptCard, Checkbox, Select } from "@/components/ui";
 import routes from "@/routes/auth.json"; 
+import walletNetworks from "@/config/json_conf/wallet_networks.json";
+
+const networkOptions = [
+  { value: "", label: "Select a network" },
+  ...Object.values(walletNetworks)
+    .filter((network) => network.signup.enabled)
+    .map((network) => ({ value: network.signup.value, label: network.signup.label })),
+];
 
 export default function SignupForm() {
   const [storeName, setStoreName] = useState("");
@@ -152,11 +160,7 @@ export default function SignupForm() {
             required
             value={network}
             onChange={(e) => setNetwork(e.target.value)}
-            options={[
-              { value: "", label: "Select Networks" },
-              { value: "bot_chain", label: "BOT Chain Mainnet" },
-              { value: "stellar", label: "Stellar Mainnet" }
-            ]}
+            options={networkOptions}
           />
 
           {error && <p className="text-sm text-red-600">{error}</p>}

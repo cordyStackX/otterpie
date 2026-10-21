@@ -1,5 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
+import pieTokenConfig from "@/config/json_conf/token_address.json";
+import PieExchangeRate from "@/components/landpage/PieExchangeRate";
+
+const pieTokens = pieTokenConfig.tokens;
+
+const applyAddressTemplate = (template: string, address: string) =>
+  template.replace("{address}", address);
 
 const sampleCategories = [
   { label: "Trading funds", share: "50%", color: "bg-primary" },
@@ -128,6 +135,44 @@ export default function LandingPage() {
             </div>
           </div>
           <Image src="/icons/otters/otter-default.svg" alt="" width={104} height={104} className="absolute -bottom-9 -right-4 z-10 h-20 w-20 rotate-6 drop-shadow-lg sm:-bottom-10 sm:-right-7 sm:h-24 sm:w-24" />
+        </div>
+      </section>
+
+      <section aria-label="Otterpie token networks and exchange rates" className="border-y border-foreground/8 bg-foreground/[0.025]">
+        <div className="mx-auto grid max-w-7xl gap-4 px-5 py-8 sm:px-8 lg:px-12">
+          {pieTokens.map((token) => (
+            <article key={token.id} aria-labelledby={`pie-token-title-${token.id}`} className="flex flex-col gap-6 rounded-2xl border border-foreground/10 bg-background/50 p-5 md:flex-row md:items-center md:justify-between sm:p-6">
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-4">
+                  <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-amber-400/20 bg-amber-400/10 p-1.5">
+                    <Image src={token.logoPath} alt={`${token.name} token brand`} width={48} height={48} className="h-full w-full object-contain" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">{token.name} token · {token.chainName}</p>
+                    <h2 id={`pie-token-title-${token.id}`} className="mt-1 text-xl font-semibold tracking-tight">{token.name} <span className="text-foreground/55">({token.symbol})</span></h2>
+                    <p className="mt-1 text-xs text-foreground/50">Token contract</p>
+                    <a
+                      href={applyAddressTemplate(token.explorerTokenUrlTemplate, token.token_address)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 block break-all font-mono text-xs text-foreground/70 underline decoration-foreground/20 underline-offset-2 transition-colors hover:text-primary hover:decoration-primary"
+                    >
+                      {token.token_address}
+                    </a>
+                  </div>
+                </div>
+                <PieExchangeRate token={token} />
+              </div>
+              <a
+                href={applyAddressTemplate(token.poolUrlTemplate, token.token_address)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-primary/25 bg-primary/[0.08] px-5 text-sm font-semibold text-primary transition-colors hover:bg-primary/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                {token.poolButtonLabel} <ArrowUpRight />
+              </a>
+            </article>
+          ))}
         </div>
       </section>
 

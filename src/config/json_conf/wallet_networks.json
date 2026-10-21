@@ -1,0 +1,64 @@
+{
+  "bot_chain": {
+    "aliases": ["bot_chain", "otterpie_bot_chain"],
+    "labels": {
+      "bot_chain": "BOT Chain Mainnet",
+      "otterpie_bot_chain": "Otterpie BOT Chain"
+    },
+    "family": "bot_chain",
+    "walletType": "evm",
+    "signup": {
+      "enabled": true,
+      "value": "bot_chain",
+      "label": "BOT Chain Mainnet"
+    },
+    "nativeAsset": "BOT",
+    "transactionAssets": ["BOT", "PIE"],
+    "assetLabels": {
+      "BOT": "BOT · BOT Chain",
+      "PIE": "PIE · Otterpie"
+    },
+    "routes": {
+      "balance": "/services/supabase/user/bot_chain_balance",
+      "transactions": "/services/supabase/user/bot_chain_transactions",
+      "withdraw": "/services/withdraw/withdraw_botchain"
+    },
+    "explorer": {
+      "name": "BOT Chain Explorer",
+      "transactionUrlTemplate": "https://scan.botchain.ai/tx/{hash}"
+    },
+    "features": {
+      "pieSwap": true
+    }
+  },
+  "stellar": {
+    "aliases": ["stellar"],
+    "labels": {
+      "stellar": "Stellar Mainnet"
+    },
+    "family": "stellar",
+    "walletType": "stellar",
+    "signup": {
+      "enabled": true,
+      "value": "stellar",
+      "label": "Stellar Mainnet"
+    },
+    "nativeAsset": "XLM",
+    "transactionAssets": ["XLM"],
+    "assetLabels": {
+      "XLM": "XLM · Stellar"
+    },
+    "routes": {
+      "balance": "/services/supabase/user/stellar_balance",
+      "transactions": "/services/supabase/user/stellar_transactions",
+      "withdraw": "/services/withdraw/withdraw_stellar"
+    },
+    "explorer": {
+      "name": "Stellar Expert",
+      "transactionUrlTemplate": "https://stellar.expert/explorer/public/tx/{hash}"
+    },
+    "features": {
+      "pieSwap": false
+    }
+  }
+}

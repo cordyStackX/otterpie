@@ -19,6 +19,7 @@ export const dynamic = "force-dynamic";
 const CHAIN_ID = 677;
 const ROUTER_ADDRESS = "0x1414eD29FdFD322c3c0a830330ed982E2D629e76";
 const WBOT_ADDRESS = "0xD5452816194a3784dBa983426cCe7c122F4abd30";
+const PIE_BOT_PAIR_ADDRESS = "0xa7a7796b5ec5ea2fdec1f94a3e71fa027f7cf45b";
 const provider = new JsonRpcProvider(
 	process.env.BOT_CHAIN_RPC_URL || "https://rpc.botchain.ai",
 	CHAIN_ID,
@@ -35,6 +36,11 @@ const tokenAbi = [
 	"function decimals() view returns (uint8)",
 	"function allowance(address owner, address spender) view returns (uint256)",
 	"function approve(address spender, uint256 amount) returns (bool)",
+];
+const pairAbi = [
+	"function token0() view returns (address)",
+	"function token1() view returns (address)",
+	"function getReserves() view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)",
 ];
 
 type SwapDirection = "PIE_TO_BOT" | "BOT_TO_PIE";
@@ -72,6 +78,46 @@ async function getAmounts(direction: SwapDirection, amountText: string) {
 		inputDecimals: direction === "PIE_TO_BOT" ? decimals : 18,
 		outputDecimals: direction === "PIE_TO_BOT" ? 18 : decimals,
 	};
+}
+
+export async function GET() {
+	try {
+		const pair = new Contract(PIE_BOT_PAIR_ADDRESS, pairAbi, provider);
+		const pie = new Contract(BOT_CHAIN_PIE_TOKEN_ADDRESS, tokenAbi, provider);
+		const [token0, token1, reserves, pieDecimalsValue] = await Promise.all([
+			pair.getFunction("token0").staticCall() as Promise<string>,
+			pair.getFunction("token1").staticCall() as Promise<string>,
+			pair.getFunction("getReserves").staticCall() as Promise<[bigint, bigint, bigint]>,
+			pie.getFunction("decimals").staticCall() as Promise<bigint>,
+		]);
+		const pieAddress = BOT_CHAIN_PIE_TOKEN_ADDRESS.toLowerCase();
+		const wbotAddress = WBOT_ADDRESS.toLowerCase();
+		if (![token0.toLowerCase(), token1.toLowerCase()].includes(pieAddress) ||
+			![token0.toLowerCase(), token1.toLowerCase()].includes(wbotAddress)) {
+			throw new Error("The configured pool does not contain PIE and wrapped BOT.");
+		}
+		const reservePie = token0.toLowerCase() === pieAddress ? reserves[0] : reserves[1];
+		const reserveWbot = token0.toLowerCase() === wbotAddress ? reserves[0] : reserves[1];
+		if (reservePie <= BigInt(0) || reserveWbot <= BigInt(0)) {
+			return NextResponse.json({ success: false, error: "Pool rate is not available yet." }, { status: 503 });
+		}
+		const pieDecimals = Number(pieDecimalsValue);
+		const pieReserve = Number(formatUnits(reservePie, pieDecimals));
+		const botReserve = Number(formatUnits(reserveWbot, 18));
+		if (!Number.isFinite(pieReserve) || !Number.isFinite(botReserve) || pieReserve <= 0 || botReserve <= 0) {
+			throw new Error("Pool reserves could not be formatted.");
+		}
+		return NextResponse.json({
+			success: true,
+			pair: "PIE/BOT",
+			pieToBot: botReserve / pieReserve,
+			botToPie: pieReserve / botReserve,
+			updatedAt: new Date().toISOString(),
+		}, { headers: { "Cache-Control": "no-store, max-age=0" } });
+	} catch (error) {
+		console.error("Could not read PIE/BOT pool rate:", error);
+		return NextResponse.json({ success: false, error: "Could not load the live PIE/BOT pool rate." }, { status: 503 });
+	}
 }
 
 function getSafeError(error: unknown): string {

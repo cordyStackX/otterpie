@@ -1,7 +1,13 @@
 import { Contract, formatUnits, isAddress, JsonRpcProvider } from "ethers";
 import config from "@/config/json_conf/token_address.json";
 
-export const BOT_CHAIN_PIE_TOKEN_ADDRESS = config.token_address;
+const botChainPie = config.tokens.find((token) => token.walletNetwork === "bot_chain");
+
+if (!botChainPie?.token_address) {
+	throw new Error("Missing BOT Chain PIE token in token_address.json");
+}
+
+export const BOT_CHAIN_PIE_TOKEN_ADDRESS = botChainPie.token_address;
 
 const BOT_CHAIN_ID = 677;
 const provider = new JsonRpcProvider(

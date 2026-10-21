@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer, createStellarWallet, createBotChainWallet, sendEmailConfirmation } from "@/lib";
 import { rateLimit, encryptText } from "@/firewall";
+import { getWalletNetworkConfig } from "@/utilities/network";
 
 export async function POST(request: NextRequest) {
   const rate = rateLimit(request, { windowMs: 60_000, max: 5, keyPrefix: "Sign_up" });
@@ -40,9 +41,14 @@ export async function POST(request: NextRequest) {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    const networkConfig = getWalletNetworkConfig(network);
+    if (!networkConfig?.signup.enabled || networkConfig.signup.value !== network) {
+      return NextResponse.json({ success: false, error: "Choose a supported wallet network." }, { status: 400 });
+    }
+
     let wallet: { walletAddress: string; secretKey: string };
-    if (network === "stellar") wallet = createStellarWallet();
-    else if (network === "bot_chain") wallet = createBotChainWallet();
+    if (networkConfig.walletType === "stellar") wallet = createStellarWallet();
+    else if (networkConfig.walletType === "evm") wallet = createBotChainWallet();
     else return NextResponse.json({ success: false, error: "Choose a supported wallet network." }, { status: 400 });
 
     const { error: accountError } = await supabaseServer

@@ -16,9 +16,8 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Fetch_to } from "@/utilities";
-import { isBotChainNetwork } from "@/utilities/network";
+import { getWalletNetworkConfig, isBotChainNetwork } from "@/utilities/network";
 import routes from "@/routes/user.json";
-import withdrawRoutes from "@/routes/withdraw.json";
 
 type DashboardProps = {
   email: string;
@@ -266,11 +265,7 @@ function WithdrawDialog({
     }
     setError("");
     setStatus("submitting");
-    const endpoint = network === "stellar"
-      ? withdrawRoutes.withdraw_stellar
-      : isBotChainNetwork(network)
-        ? withdrawRoutes.withdraw_botchain
-        : null;
+    const endpoint = getWalletNetworkConfig(network)?.routes.withdraw ?? null;
     if (!endpoint) {
       setError("Withdrawals are not supported for this wallet network.");
       setStatus("idle");
@@ -504,12 +499,15 @@ export default function Dashboard({ email, network }: DashboardProps) {
   const [selectedAsset, setSelectedAsset] = useState<"BOT" | "PIE">("PIE");
   const [swapDirection, setSwapDirection] = useState<{ from: "BOT" | "PIE"; to: "BOT" | "PIE" } | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const networkConfig = getWalletNetworkConfig(network);
 
   // Wallet balance (pie chart), formatted by the active network's ticker
   const [walletData, setWalletData] = useState<Slice[]>([]);
   const [loadingBalance, setLoadingBalance] = useState(true);
   const [loadingTransfers, setLoadingTransfers] = useState(true);
-  const activeSymbol = network === "stellar" ? "XLM" : isBotChainNetwork(network) ? selectedAsset : "";
+  const activeSymbol = networkConfig
+    ? networkConfig.features.pieSwap ? selectedAsset : networkConfig.nativeAsset
+    : "";
   const formatAmount = useMemo(() => makeFormatter(activeSymbol), [activeSymbol]);
 
   const nativeBalance = walletData.find((slice) => slice.name === activeSymbol)?.amount ?? 0;
@@ -607,20 +605,13 @@ export default function Dashboard({ email, network }: DashboardProps) {
     setIncoming([]);
     setWithdrawn({});
 
-    const config =
-      network === "stellar"
-        ? {
-            balance: routes.stellar_balance,
-            transactions: routes.stellar_transactions,
-            symbol: "XLM",
-          }
-        : isBotChainNetwork(network)
-          ? {
-              balance: routes.bot_chain_balance,
-              transactions: routes.bot_chain_transactions,
-              symbol: selectedAsset,
-            }
-          : null;
+    const config = networkConfig
+      ? {
+          balance: networkConfig.routes.balance,
+          transactions: networkConfig.routes.transactions,
+          symbol: networkConfig.features.pieSwap ? selectedAsset : networkConfig.nativeAsset,
+        }
+      : null;
 
     const getBalance = async () => {
       if (inFlight) return; // never stack requests when the network is slow
@@ -725,7 +716,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [email, network, selectedAsset]);
+  }, [email, network, networkConfig, selectedAsset]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -1141,7 +1132,9 @@ export default function Dashboard({ email, network }: DashboardProps) {
           balance={nativeBalance}
           email={email}
           onSwapped={async () => {
-            const response = await Fetch_to("POST", routes.bot_chain_balance, { email }, undefined, 1);
+            const balanceRoute = getWalletNetworkConfig(network)?.routes.balance;
+            if (!balanceRoute) return;
+            const response = await Fetch_to("POST", balanceRoute, { email }, undefined, 1);
             if (response.success) {
               setWalletData(toSlices(response.data.balances));
               setLastUpdated(new Date());
