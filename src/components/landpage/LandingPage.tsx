@@ -2,9 +2,9 @@ import Image from "next/image";
 import Link from "next/link";
 
 const sampleCategories = [
-  { label: "Stock & supplies", share: "50%", color: "bg-primary" },
+  { label: "Trading funds", share: "50%", color: "bg-primary" },
   { label: "Savings", share: "30%", color: "bg-secondary" },
-  { label: "For the store", share: "20%", color: "bg-amber-400" },
+  { label: "Rent", share: "20%", color: "bg-amber-400" },
 ];
 
 function ArrowUpRight() {
@@ -36,7 +36,7 @@ export default function LandingPage() {
 
         <nav aria-label="Main navigation" className="hidden items-center gap-8 text-sm font-medium text-foreground/65 md:flex">
           <a href="#how-it-works" className="transition-colors hover:text-foreground">How it works</a>
-          <a href="#made-for-stores" className="transition-colors hover:text-foreground">For your store</a>
+          <a href="#flexible-plans" className="transition-colors hover:text-foreground">Your plans</a>
           <Link href="/terms" className="transition-colors hover:text-foreground">Terms</Link>
           <Link href="/privacy" className="transition-colors hover:text-foreground">Privacy</Link>
         </nav>
@@ -55,19 +55,19 @@ export default function LandingPage() {
         <div className="relative z-10 max-w-2xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/[0.07] px-3.5 py-1.5 text-xs font-semibold tracking-wide text-primary">
             <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-            A little more clarity for every store day
+            A little more clarity for every money goal
           </div>
           <h1 className="mt-6 text-[2.8rem] font-semibold leading-[1.05] tracking-[-0.055em] sm:text-6xl lg:text-[4.4rem]">
-            One scan.
+            One wallet.
             <br />
-            <span className="text-primary">Every fund</span> in its place.
+            <span className="text-primary">Every plan</span> in view.
           </h1>
           <p className="mt-6 max-w-xl text-base leading-7 text-foreground/65 sm:text-lg sm:leading-8">
-            A friendlier way to keep track of store payments. See what came in, plan how it is divided, and keep your goals close at hand.
+            See what came in, follow your balance, and organize funds around the things that matter to you — from trading and savings to rent and everyday spending.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link href="/auth/signup" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-semibold text-background shadow-lg shadow-primary/20 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background">
-              Set up your store <ArrowUpRight />
+              Set up your wallet <ArrowUpRight />
             </Link>
             <a href="#how-it-works" className="inline-flex min-h-12 items-center justify-center rounded-xl border border-foreground/15 px-6 text-sm font-semibold transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
               See how it works
@@ -83,7 +83,7 @@ export default function LandingPage() {
             <div className="rounded-[1.25rem] border border-foreground/10 bg-foreground/[0.025] p-5 sm:p-7">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-xs font-medium text-foreground/50">YOUR STORE OVERVIEW</p>
+                  <p className="text-xs font-medium text-foreground/50">YOUR WALLET OVERVIEW</p>
                   <p className="mt-1 text-lg font-semibold tracking-tight">A clearer picture</p>
                 </div>
                 <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">Example</span>
@@ -136,14 +136,14 @@ export default function LandingPage() {
           <div className="max-w-2xl">
             <p className="text-sm font-semibold text-primary">A simpler daily rhythm</p>
             <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Know what came in. Know what it means.</h2>
-            <p className="mt-4 text-sm leading-7 text-foreground/60 sm:text-base">Otterpie gives your wallet activity a little more context, so your store goals are easier to keep in view.</p>
+            <p className="mt-4 text-sm leading-7 text-foreground/60 sm:text-base">Otterpie gives your wallet activity more context, helping you understand what came in, what went out, and how your funds are organized.</p>
           </div>
 
           <div className="mt-10 grid gap-4 md:grid-cols-3">
             {[
-              { number: "01", title: "Set your shares", text: "Create categories for supplies, savings, rent, or whatever matters to your shop." },
-              { number: "02", title: "Receive to your wallet", text: "Share your store QR code so customers can send funds to your selected network." },
-              { number: "03", title: "See the breakdown", text: "Follow your balance, recent transactions, and the category plan in one dashboard." },
+              { number: "01", title: "Choose your categories", text: "Create categories for trading, savings, rent, bills, or any goal you want to track." },
+              { number: "02", title: "Receive to your wallet", text: "Use your payment QR to receive funds on your selected network." },
+              { number: "03", title: "Understand your activity", text: "Follow your balance, review transactions, and see how funds are organized in one dashboard." },
             ].map((step) => (
               <article key={step.number} className="rounded-2xl border border-foreground/10 bg-background p-6 sm:p-7">
                 <span className="text-xs font-bold tracking-[0.16em] text-primary">{step.number}</span>
@@ -155,14 +155,14 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="made-for-stores" className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-2 lg:items-center lg:gap-20 lg:px-12">
+      <section id="flexible-plans" className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-2 lg:items-center lg:gap-20 lg:px-12">
         <div className="relative overflow-hidden rounded-[1.75rem] border border-foreground/10 bg-primary/[0.06] p-7 sm:p-10">
           <div aria-hidden="true" className="absolute -right-8 -top-8 h-40 w-40 rounded-full border border-primary/15" />
           <div aria-hidden="true" className="absolute -right-1 top-0 h-28 w-28 rounded-full border border-primary/15" />
           <div className="relative max-w-sm">
-            <span className="inline-flex rounded-full bg-background px-3 py-1 text-xs font-semibold text-primary shadow-sm">Made for the everyday</span>
-            <h2 className="mt-5 text-3xl font-semibold leading-tight tracking-tight">Your store has a lot to keep moving.</h2>
-            <p className="mt-4 text-sm leading-7 text-foreground/65">A small shop runs on a hundred little decisions. Otterpie helps make the money side easier to see, without another notebook to carry.</p>
+            <span className="inline-flex rounded-full bg-background px-3 py-1 text-xs font-semibold text-primary shadow-sm">Made to fit your plans</span>
+            <h2 className="mt-5 text-3xl font-semibold leading-tight tracking-tight">Give every part of your money a purpose.</h2>
+            <p className="mt-4 text-sm leading-7 text-foreground/65">Set up categories that match the way you manage your money, then keep balances and activity easy to review.</p>
             <Image src="/icons/otters/otter-supplier.svg" alt="" width={160} height={160} className="mt-5 h-32 w-32 object-contain" />
           </div>
         </div>
@@ -172,10 +172,10 @@ export default function LandingPage() {
           <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">A calmer view of your wallet.</h2>
           <ul className="mt-7 space-y-4">
             {[
-              "Choose the categories and percentages that fit your business.",
-              "Set goals and watch your available category amounts change with your balance.",
-              "Review recent activity and find payments across supported networks.",
-              "Keep your store name and payment QR together in one place.",
+              "Choose categories and percentages for goals like trading, savings, rent, or spending.",
+              "See how your planned category amounts relate to your wallet balance.",
+              "Review recent activity and find transactions across supported networks.",
+              "Keep your wallet details and payment QR together in one place.",
             ].map((item) => (
               <li key={item} className="flex items-start gap-3 text-sm leading-6 text-foreground/65">
                 <CheckMark /> <span>{item}</span>
@@ -183,7 +183,7 @@ export default function LandingPage() {
             ))}
           </ul>
           <Link href="/auth/signup" className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline">
-            Make your store account <ArrowUpRight />
+            Create your wallet <ArrowUpRight />
           </Link>
         </div>
       </section>
@@ -195,7 +195,7 @@ export default function LandingPage() {
           <div className="relative flex flex-col items-start justify-between gap-8 md:flex-row md:items-center">
             <div className="max-w-xl">
               <p className="text-sm font-semibold text-white/75">A good place to start</p>
-              <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Give your next store day a clearer start.</h2>
+              <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Give your money plans a clearer start.</h2>
               <p className="mt-3 text-sm leading-6 text-white/75">Set up your wallet and build a category plan that feels like yours.</p>
             </div>
             <Link href="/auth/signup" className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-xl bg-background px-5 text-sm font-semibold text-primary shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary">
@@ -211,7 +211,7 @@ export default function LandingPage() {
             <Image src="/logo.svg" alt="" width={32} height={32} className="h-8 w-8 rounded-lg bg-primary/10 p-1" />
             <span className="text-sm font-bold tracking-tight">otterpie<span className="text-primary">.</span></span>
           </Link>
-          <p className="text-xs text-foreground/45">A clearer way to keep your store funds in view.</p>
+          <p className="text-xs text-foreground/45">A clearer way to keep your balances and transactions in view.</p>
           <nav aria-label="Legal" className="flex gap-5 text-xs font-medium text-foreground/55">
             <Link href="/terms" className="hover:text-primary">Terms of Service</Link>
             <Link href="/privacy" className="hover:text-primary">Privacy Policy</Link>
