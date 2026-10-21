@@ -749,7 +749,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
                 </ResponsiveContainer>
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
                   <p className="text-xs text-foreground/50">Total balance</p>
-                  <p className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">
+                  <p className="max-w-[62%] break-words text-center text-sm font-semibold leading-tight tabular-nums tracking-tight text-foreground sm:text-base">
                     {formatAmount(walletTotal)}
                   </p>
                 </div>
