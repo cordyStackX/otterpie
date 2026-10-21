@@ -172,6 +172,19 @@ export default function Sidebar({
       : pathname === href || pathname.startsWith(`${href}/`);
 
   const initial = userName.trim().charAt(0).toUpperCase() || "U";
+  const accountExplorer = wallet_address
+    ? network === "stellar"
+      ? {
+          href: `https://stellar.expert/explorer/public/account/${encodeURIComponent(wallet_address)}`,
+          label: "View on Stellar Expert",
+        }
+      : network === "bot_chain"
+        ? {
+            href: `https://scan.botchain.ai/address/${encodeURIComponent(wallet_address)}`,
+            label: "View on BOT Chain Explorer",
+          }
+        : null
+    : null;
 
   const handleCopyAddress = async () => {
     if (!wallet_address) return;
@@ -521,6 +534,17 @@ export default function Sidebar({
                     </>
                   )}
                 </button>
+                {accountExplorer && (
+                  <a
+                    href={accountExplorer.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-2 inline-flex items-center gap-1 rounded-md border border-foreground/15 px-3 py-1.5 text-xs font-medium text-foreground/75 transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  >
+                    {accountExplorer.label}
+                    <span aria-hidden="true">↗</span>
+                  </a>
+                )}
 
                 <div className="mt-5 border-t border-foreground/10 pt-5 text-center">
                   <p className="text-sm font-semibold">Scan to pay or deposit to this wallet</p>
