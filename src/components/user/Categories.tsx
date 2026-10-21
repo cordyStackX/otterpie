@@ -35,11 +35,13 @@ const colorOptions = [
   { name: "Lime", value: "#a4c85a" },
 ];
 const DEFAULT_COLOR = colorOptions[0].value;
+const CATEGORIES_PER_PAGE = 10;
 
 const card = "rounded-xl border border-foreground/10 bg-background";
 
 export default function Categories({ email }: CategoriesProps) {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryPage, setCategoryPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [selectedForDelete, setSelectedForDelete] = useState<string[]>([]);
@@ -81,6 +83,12 @@ export default function Categories({ email }: CategoriesProps) {
   }, [email]);
 
   const totalPercent = categories.reduce((sum, category) => sum + category.percent, 0);
+  const totalCategoryPages = Math.max(Math.ceil(categories.length / CATEGORIES_PER_PAGE), 1);
+  const currentCategoryPage = Math.min(categoryPage, totalCategoryPages);
+  const visibleCategories = categories.slice(
+    (currentCategoryPage - 1) * CATEGORIES_PER_PAGE,
+    currentCategoryPage * CATEGORIES_PER_PAGE,
+  );
   const remainingPercent = Math.max(100 - totalPercent, 0);
   const formAvailablePercent = Math.max(
     100 - categories
@@ -155,6 +163,10 @@ export default function Categories({ email }: CategoriesProps) {
     if (!(await persistCategories(nextCategories))) {
       setFormError("Could not save this category. Please try again.");
       return;
+    }
+
+    if (!editingCategoryId) {
+      setCategoryPage(Math.ceil(nextCategories.length / CATEGORIES_PER_PAGE));
     }
 
     resetForm();
@@ -302,8 +314,9 @@ export default function Categories({ email }: CategoriesProps) {
             </button>
           </div>
         ) : (
+          <>
           <ul className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
-            {categories.map((category) => {
+            {visibleCategories.map((category) => {
               const selected = selectedForDelete.includes(category.id);
               return (
                 <li key={category.id} className="space-y-2">
@@ -372,6 +385,38 @@ export default function Categories({ email }: CategoriesProps) {
               );
             })}
           </ul>
+          {totalCategoryPages > 1 && (
+            <nav
+              aria-label="Category pages"
+              className="flex items-center justify-between border-t border-foreground/10 px-4 py-3 sm:px-5"
+            >
+              <p className="text-xs text-foreground/50">
+                Showing {(currentCategoryPage - 1) * CATEGORIES_PER_PAGE + 1}–{Math.min(currentCategoryPage * CATEGORIES_PER_PAGE, categories.length)} of {categories.length} loaded categories
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCategoryPage((current) => Math.max(1, current - 1))}
+                  disabled={currentCategoryPage === 1}
+                  className="rounded-lg border border-foreground/15 px-3 py-1.5 text-xs font-medium text-foreground/75 transition-colors hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                <span aria-live="polite" className="min-w-16 text-center text-xs text-foreground/55">
+                  Page {currentCategoryPage} of {totalCategoryPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCategoryPage((current) => Math.min(totalCategoryPages, current + 1))}
+                  disabled={currentCategoryPage === totalCategoryPages}
+                  className="rounded-lg border border-foreground/15 px-3 py-1.5 text-xs font-medium text-foreground/75 transition-colors hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
+            </nav>
+          )}
+          </>
         )}
       </section>
 

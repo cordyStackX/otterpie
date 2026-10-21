@@ -43,8 +43,23 @@ export default function Transactions({ email, network } : TransactionProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("All");
+  const [page, setPage] = useState(1);
+  const [cursor, setCursor] = useState("");
+  const [cursorHistory, setCursorHistory] = useState<string[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setPage(1);
+    setCursor("");
+    setCursorHistory([]);
+    setNextCursor(null);
+    setHasMore(false);
+    setSearch("");
+    setFilter("All");
+  }, [email, network]);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,6 +75,8 @@ export default function Transactions({ email, network } : TransactionProps) {
 
       if (!route) {
         setTransactions([]);
+        setNextCursor(null);
+        setHasMore(false);
         setError("Transactions are not available for this network.");
         setLoading(false);
         return;
@@ -69,7 +86,7 @@ export default function Transactions({ email, network } : TransactionProps) {
       setError("");
 
       try {
-        const response = await Fetch_to("POST", route, { email });
+        const response = await Fetch_to("POST", route, { email, cursor: cursor || null });
         if (!response.success) {
           throw new Error(response.message || "Could not load transactions.");
         }
@@ -97,10 +114,16 @@ export default function Transactions({ email, network } : TransactionProps) {
           hash: record.hash ?? record.id,
         }));
 
-        if (!cancelled) setTransactions(mapped);
+        if (!cancelled) {
+          setTransactions(mapped);
+          setNextCursor(response.data?.nextCursor ?? null);
+          setHasMore(response.data?.hasMore === true);
+        }
       } catch (err) {
         if (!cancelled) {
           setTransactions([]);
+          setNextCursor(null);
+          setHasMore(false);
           setError(err instanceof Error ? err.message : "Could not load transactions.");
         }
       } finally {
@@ -112,7 +135,7 @@ export default function Transactions({ email, network } : TransactionProps) {
     return () => {
       cancelled = true;
     };
-  }, [email, network]);
+  }, [email, network, cursor]);
 
   const query = search.trim().toLowerCase();
   const visibleTransactions = transactions.filter((transaction) =>
@@ -120,7 +143,6 @@ export default function Transactions({ email, network } : TransactionProps) {
     (!query || [transaction.name, transaction.address, transaction.hash, transaction.status]
       .some((value) => value.toLowerCase().includes(query)))
   );
-
   const completedCount = transactions.filter((t) => t.status === "Completed").length;
   const receivedTotal = transactions
     .filter((t) => t.type === "Receive" && t.status === "Completed")
@@ -132,7 +154,7 @@ export default function Transactions({ email, network } : TransactionProps) {
           <p className="text-sm font-medium text-primary">Wallet activity</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Transactions</h1>
           <p className="mt-1 text-sm text-foreground/55">
-            Review and search your recent {network === "stellar" ? "Stellar" : "BOT Chain"} wallet activity.
+            Browse recent {network === "stellar" ? "Stellar" : "BOT Chain"} activity, 10 transactions at a time.
           </p>
         </div>
         <button
@@ -148,17 +170,17 @@ export default function Transactions({ email, network } : TransactionProps) {
 
       <section aria-label="Transaction summary" className="grid gap-3 sm:grid-cols-3">
         <div className={`${cardClass} p-4`}>
-          <p className="text-xs font-medium text-foreground/50">Total transactions</p>
+          <p className="text-xs font-medium text-foreground/50">Transactions on this page</p>
           <p className="mt-2 text-2xl font-semibold tabular-nums">{transactions.length}</p>
-          <p className="mt-1 text-xs text-foreground/45">Across all activity</p>
+          <p className="mt-1 text-xs text-foreground/45">Up to 10 loaded at a time</p>
         </div>
         <div className={`${cardClass} p-4`}>
-          <p className="text-xs font-medium text-foreground/50">Completed</p>
+          <p className="text-xs font-medium text-foreground/50">Completed on this page</p>
           <p className="mt-2 text-2xl font-semibold tabular-nums">{completedCount}</p>
           <p className="mt-1 text-xs text-foreground/45">Successfully processed</p>
         </div>
         <div className={`${cardClass} p-4`}>
-          <p className="text-xs font-medium text-foreground/50">Received</p>
+          <p className="text-xs font-medium text-foreground/50">Received on this page</p>
           <p className="mt-2 text-2xl font-semibold tabular-nums">
             {new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(receivedTotal)}
             <span className="ml-1.5 text-sm font-medium text-foreground/50">
@@ -174,7 +196,7 @@ export default function Transactions({ email, network } : TransactionProps) {
           <div>
             <h2 id="transaction-list-title" className="text-sm font-semibold">All activity</h2>
             <p className="mt-1 text-xs text-foreground/50">
-              {visibleTransactions.length} {visibleTransactions.length === 1 ? "transaction" : "transactions"} shown
+              {visibleTransactions.length} matching {visibleTransactions.length === 1 ? "transaction" : "transactions"} on this page
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -203,7 +225,7 @@ export default function Transactions({ email, network } : TransactionProps) {
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search name or address"
+                placeholder="Search this page"
                 className="w-full rounded-lg border border-foreground/15 bg-background py-2 pl-9 pr-3 text-xs text-foreground outline-none placeholder:text-foreground/35 focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
               />
             </label>
@@ -270,6 +292,43 @@ export default function Transactions({ email, network } : TransactionProps) {
               </table>
             </div>
           </>
+        )}
+        {!loading && !error && (transactions.length > 0 || page > 1) && (
+          <nav
+            aria-label="Transaction pages"
+            className="flex flex-col gap-3 border-t border-foreground/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+          >
+            <p className="text-xs text-foreground/50">Page {page} · {transactions.length} transactions loaded</p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const previousCursor = cursorHistory[cursorHistory.length - 1] ?? "";
+                  setCursorHistory((history) => history.slice(0, -1));
+                  setCursor(previousCursor);
+                  setPage((current) => Math.max(1, current - 1));
+                }}
+                disabled={page === 1 || loading}
+                className="rounded-lg border border-foreground/15 px-3 py-1.5 text-xs font-medium text-foreground/75 transition-colors hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <span aria-live="polite" className="min-w-16 text-center text-xs text-foreground/55">Page {page}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!nextCursor) return;
+                  setCursorHistory((history) => [...history, cursor]);
+                  setCursor(nextCursor);
+                  setPage((current) => current + 1);
+                }}
+                disabled={!hasMore || !nextCursor || loading}
+                className="rounded-lg border border-foreground/15 px-3 py-1.5 text-xs font-medium text-foreground/75 transition-colors hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </nav>
         )}
       </section>
     </div>

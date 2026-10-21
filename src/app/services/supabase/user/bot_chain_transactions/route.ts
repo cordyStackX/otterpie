@@ -13,8 +13,10 @@ export const dynamic = "force-dynamic"; // always read fresh transactions
 const EXPLORER_API_URL =
   process.env.BOT_CHAIN_EXPLORER_API_URL || "https://scan.botchain.ai/api";
 
-const MAX_RESULTS = 1000; // newest 1,000 transactions is plenty for 12 months
-const HISTORY_MONTHS = 12; // the dashboard shows up to 12 months
+const EXPLORER_PAGE_SIZE = 50;
+const MAX_EXPLORER_PAGES = 5; // cap work per request while searching for 10 transfers
+const TRANSACTION_PAGE_SIZE = 10;
+const HISTORY_MONTHS = 12;
 
 type Incoming = {
   id: string;
@@ -43,7 +45,7 @@ export async function POST(params: NextRequest) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const { email } = await params.json();
+  const { email, cursor } = await params.json();
 
   // Only the PUBLIC address is needed, so the private key is never selected.
   const { data, error } = await supabaseServer
@@ -69,67 +71,111 @@ export async function POST(params: NextRequest) {
     return NextResponse.json({ success: false, error: "Server misconfigured" }, { status: 500 });
   }
 
-  const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - HISTORY_MONTHS);
-
   try {
-    const url = new URL(EXPLORER_API_URL);
-    url.searchParams.set("module", "account");
-    url.searchParams.set("action", "txlist");
-    url.searchParams.set("address", address);
-    url.searchParams.set("sort", "desc");
-    url.searchParams.set("page", "1");
-    url.searchParams.set("offset", String(MAX_RESULTS));
-
-    const res = await fetch(url, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(10_000),
-    });
-
-    if (!res.ok) {
-      console.error("BOT Chain explorer returned", res.status);
-      return NextResponse.json({ success: false, error: "Could not reach BOT Chain" }, { status: 502 });
-    }
-
-    const body = (await res.json()) as {
-      status?: string;
-      message?: string;
-      result?: ExplorerTx[] | string;
-    };
-
-    // Etherscan-style APIs answer "No transactions found" with status "0" and
-    // an empty list. That is a valid empty wallet, not an error.
-    const list = Array.isArray(body.result) ? body.result : [];
-    if (!Array.isArray(body.result) && body.status !== "0") {
-      console.error("Unexpected explorer response", body);
-      return NextResponse.json({ success: false, error: "Could not reach BOT Chain" }, { status: 502 });
-    }
-
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - HISTORY_MONTHS);
     const me = address.toLowerCase();
     const transactions: Incoming[] = [];
+    const parsedCursor = typeof cursor === "string" && /^\d+:\d+$/.test(cursor)
+      ? cursor.split(":").map(Number)
+      : [1, 0];
+    const [parsedPage, parsedIndex] = parsedCursor;
+    const cursorIsValid = Number.isSafeInteger(parsedPage) && parsedPage >= 1 &&
+      Number.isSafeInteger(parsedIndex) && parsedIndex >= 0 && parsedIndex < EXPLORER_PAGE_SIZE;
+    const cursorPage = cursorIsValid ? parsedPage : 1;
+    const cursorIndex = cursorIsValid ? parsedIndex : 0;
+    let explorerPage = cursorPage;
+    let startIndex = cursorIndex;
+    let nextCursor: string | null = null;
+    let hasMore = false;
+    let reachedCutoff = false;
 
-    for (const t of list) {
-      const date = new Date(Number(t.timeStamp) * 1000);
-      if (date < cutoff) continue;
+    for (let requestIndex = 0; requestIndex < MAX_EXPLORER_PAGES; requestIndex++) {
+      const url = new URL(EXPLORER_API_URL);
+      url.searchParams.set("module", "account");
+      url.searchParams.set("action", "txlist");
+      url.searchParams.set("address", address);
+      url.searchParams.set("sort", "desc");
+      url.searchParams.set("page", String(explorerPage));
+      url.searchParams.set("offset", String(EXPLORER_PAGE_SIZE));
 
-      const received = t.to?.toLowerCase() === me;
-      const sent = t.from?.toLowerCase() === me;
-      const succeeded = t.isError === undefined || t.isError === "0";
-      const hasValue = t.value !== "0" && t.value !== "";
+      const res = await fetch(url, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(10_000),
+      });
 
-      if ((received || sent) && hasValue) {
-        transactions.push({
-          id: t.hash,
-          date: date.toISOString(),
-          amount: formatEther(BigInt(t.value)),
-          asset: "BOT",
-          from: t.from ?? null,
-          to: t.to ?? null,
-          direction: received ? "received" : "sent",
-          type: "transfer",
-          status: succeeded ? "Completed" : "Failed",
-        });
+      if (!res.ok) {
+        console.error("BOT Chain explorer returned", res.status);
+        return NextResponse.json({ success: false, error: "Could not reach BOT Chain" }, { status: 502 });
       }
+
+      const body = (await res.json()) as {
+        status?: string;
+        message?: string;
+        result?: ExplorerTx[] | string;
+      };
+      const list = Array.isArray(body.result) ? body.result : [];
+      if (!Array.isArray(body.result) && body.status !== "0") {
+        console.error("Unexpected explorer response", body);
+        return NextResponse.json({ success: false, error: "Could not reach BOT Chain" }, { status: 502 });
+      }
+
+      if (list.length === 0) break;
+
+      for (let index = startIndex; index < list.length; index++) {
+        const t = list[index];
+        const date = new Date(Number(t.timeStamp) * 1000);
+        if (date < cutoff) {
+          reachedCutoff = true;
+          break;
+        }
+        const received = t.to?.toLowerCase() === me;
+        const sent = t.from?.toLowerCase() === me;
+        const succeeded = t.isError === undefined || t.isError === "0";
+        const hasValue = t.value !== "0" && t.value !== "";
+
+        if ((received || sent) && hasValue) {
+          transactions.push({
+            id: t.hash,
+            date: date.toISOString(),
+            amount: formatEther(BigInt(t.value)),
+            asset: "BOT",
+            from: t.from ?? null,
+            to: t.to ?? null,
+            direction: received ? "received" : "sent",
+            type: "transfer",
+            status: succeeded ? "Completed" : "Failed",
+          });
+        }
+
+        const hasRemainingInPage = index < list.length - 1;
+        const nextPageExists = hasRemainingInPage || list.length === EXPLORER_PAGE_SIZE;
+        nextCursor = hasRemainingInPage
+          ? `${explorerPage}:${index + 1}`
+          : nextPageExists ? `${explorerPage + 1}:0` : null;
+
+        if (transactions.length >= TRANSACTION_PAGE_SIZE) {
+          hasMore = nextPageExists;
+          break;
+        }
+      }
+
+      if (transactions.length >= TRANSACTION_PAGE_SIZE) break;
+      if (reachedCutoff) {
+        nextCursor = null;
+        hasMore = false;
+        break;
+      }
+      if (list.length < EXPLORER_PAGE_SIZE) {
+        nextCursor = null;
+        hasMore = false;
+        break;
+      }
+
+      explorerPage += 1;
+      startIndex = 0;
+      nextCursor = `${explorerPage}:0`;
+      hasMore = true;
     }
 
     return NextResponse.json({
@@ -137,6 +183,8 @@ export async function POST(params: NextRequest) {
       funded: transactions.length > 0,
       address,
       transactions,
+      nextCursor: hasMore ? nextCursor : null,
+      hasMore,
     });
   } catch (e) {
     console.error(e);

@@ -10,9 +10,9 @@ const server = new Horizon.Server(
   process.env.STELLAR_HORIZON_URL || "https://horizon.stellar.org"
 );
 
-const PAGE_SIZE = 200; // Horizon's max per page
-const MAX_PAGES = 5; // safety cap: at most 1,000 operations per request
-const HISTORY_MONTHS = 12; // the dashboard shows up to 12 months
+const HORIZON_PAGE_SIZE = 200; // Horizon's max per page
+const MAX_HORIZON_PAGES = 5; // safety cap while finding 10 matching transactions
+const TRANSACTION_PAGE_SIZE = 10;
 
 type Incoming = {
   id: string;
@@ -33,7 +33,7 @@ export async function POST(params: NextRequest) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const { email } = await params.json();
+  const { email, cursor } = await params.json();
 
   // Only the PUBLIC address is needed, so the secret key is never selected.
   const { data, error } = await supabaseServer
@@ -59,22 +59,25 @@ export async function POST(params: NextRequest) {
     return NextResponse.json({ success: false, error: "Server misconfigured" }, { status: 500 });
   }
 
-  const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - HISTORY_MONTHS);
-
   try {
     const transactions: Incoming[] = [];
-
-    let page = await server
+    let operations = server
       .payments()
       .forAccount(address)
       .order("desc")
-      .limit(PAGE_SIZE)
-      .call();
+      .limit(HORIZON_PAGE_SIZE);
 
-    for (let i = 0; i < MAX_PAGES; i++) {
-      for (const rec of page.records) {
+    const validCursor = typeof cursor === "string" && /^[\d-]{1,128}$/.test(cursor) ? cursor : null;
+    if (validCursor) operations = operations.cursor(validCursor);
+    let page = await operations.call();
+    let nextCursor: string | null = validCursor;
+    let hasMore = false;
+
+    for (let pageIndex = 0; pageIndex < MAX_HORIZON_PAGES; pageIndex++) {
+      for (let recordIndex = 0; recordIndex < page.records.length; recordIndex++) {
+        const rec = page.records[recordIndex];
         const r = rec as unknown as Record<string, string>;
+        nextCursor = r.paging_token ?? nextCursor;
 
         // First funding of the account
         if (r.type === "create_account" && r.account === address) {
@@ -90,6 +93,10 @@ export async function POST(params: NextRequest) {
             type: r.type,
             status: "Completed",
           });
+          if (transactions.length >= TRANSACTION_PAGE_SIZE) {
+            hasMore = recordIndex < page.records.length - 1 || page.records.length === HORIZON_PAGE_SIZE;
+            break;
+          }
           continue;
         }
 
@@ -112,21 +119,37 @@ export async function POST(params: NextRequest) {
             type: r.type,
             status: "Completed",
           });
+          if (transactions.length >= TRANSACTION_PAGE_SIZE) {
+            hasMore = recordIndex < page.records.length - 1 || page.records.length === HORIZON_PAGE_SIZE;
+            break;
+          }
         }
       }
 
+      if (transactions.length >= TRANSACTION_PAGE_SIZE) break;
+
       const last = page.records[page.records.length - 1];
-      const reachedCutoff = !last || new Date(last.created_at) < cutoff;
-      if (reachedCutoff || page.records.length < PAGE_SIZE) break;
+      if (!last || page.records.length < HORIZON_PAGE_SIZE) {
+        hasMore = false;
+        break;
+      }
 
       page = await page.next();
+      hasMore = page.records.length > 0;
     }
 
-    return NextResponse.json({ success: true, funded: true, address, transactions });
+    return NextResponse.json({
+      success: true,
+      funded: true,
+      address,
+      transactions,
+      nextCursor: hasMore ? nextCursor : null,
+      hasMore,
+    });
   } catch (e) {
     // Horizon returns 404 for an address that was never funded on this network
     if ((e as { response?: { status?: number } })?.response?.status === 404) {
-      return NextResponse.json({ success: true, funded: false, address, transactions: [] });
+      return NextResponse.json({ success: true, funded: false, address, transactions: [], nextCursor: null, hasMore: false });
     }
 
     console.error(e);
