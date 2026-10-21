@@ -31,7 +31,7 @@ export async function PATCH(params: NextRequest) {
 
     if (percentages.some((percent: number) => !Number.isFinite(percent) || percent < 0 || percent > 100)) {
       return NextResponse.json(
-        { success: false, error: "Each category deduction must be between 0% and 100%" },
+        { success: false, error: "Each category share must be between 0% and 100%" },
         { status: 400 }
       );
     }
@@ -39,7 +39,7 @@ export async function PATCH(params: NextRequest) {
     const totalPercent = percentages.reduce((total: number, percent: number) => total + percent, 0);
     if (totalPercent > 100) {
       return NextResponse.json(
-        { success: false, error: "Category deductions cannot total more than 100%" },
+        { success: false, error: "Category shares cannot total more than 100%" },
         { status: 400 }
       );
     }

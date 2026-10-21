@@ -11,7 +11,6 @@ type CategoryRule = {
   id: string;
   name: string;
   percent: number;
-  goal: number;
   icons: string;
   color: string;
 };
@@ -23,21 +22,18 @@ function cleanCategories(raw: unknown): CategoryRule[] {
 
   return raw.flatMap((c) => {
     if (!c || typeof c !== "object") return [];
-    const { id, name, percent, goal, icons, color } = c as Record<string, unknown>;
+    const { id, name, percent, icons, color } = c as Record<string, unknown>;
 
     if (typeof name !== "string" || !name.trim()) return [];
 
     const pct = Number(percent);
-    const goalNum = Number(goal ?? 0);
     if (!Number.isFinite(pct) || pct < 0 || pct > 100) return [];
-    if (!Number.isFinite(goalNum) || goalNum < 0) return [];
 
     return [
       {
         id: typeof id === "string" ? id.trim() : "",
         name: name.trim(),
         percent: pct,
-        goal: goalNum,
         icons:
           typeof icons === "string" && icons.startsWith("/icons/")
             ? icons

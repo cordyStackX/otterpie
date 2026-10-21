@@ -16,7 +16,7 @@ Money often has different purposes: saving for a goal, setting aside rent, manag
 
 ## What Otterpie does
 
-Otterpie gives each user a wallet on their selected network: Stellar or BOT Chain. Users can check their balance, review incoming and outgoing transactions, and organize funds across **categories they define themselves** — such as trading, savings, rent, bills, or everyday spending. Payment splits make it easier to see how incoming money is divided, while transaction history helps users understand wallet activity over time.
+Otterpie gives each user a wallet on their selected network: Stellar or BOT Chain. Users can check their balance, review incoming and outgoing transactions, and organize funds across **categories they define themselves** — such as trading, savings, rent, bills, or everyday spending. Each category shows its percentage of the current wallet balance, with any unassigned share kept visible. These categories are a tracking view; funds remain in the same wallet.
 
 The goal is a clearer picture of your money: what came in, what went out, how much is available, and how funds are set aside for different plans.
 

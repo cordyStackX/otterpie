@@ -71,29 +71,23 @@ const card = "rounded-xl border border-foreground/10 bg-background p-5";
 const skeletonClass = "animate-pulse motion-reduce:animate-none rounded-md bg-foreground/10";
 
 // ---------------------------------------------------------------------------
-// Each successful incoming payment contributes its own percentage to every
-// category. Contributions accumulate until an optional goal is reached.
+// Each category shows its percentage of the current native wallet balance.
 //
-//   contribution = payment.amount × percent ÷ 100
-//   allocated    = min(previous + contribution, goal) (goal = 0 means no cap)
-//   available = allocated − withdrawn       (never below 0)
+//   category amount = current balance × percent ÷ 100
+//   available       = category amount − pending withdrawal (never below 0)
 //
-// Example: two 1 BOT payments, 40% Savings → 0.4 + 0.4 = 0.8 BOT.
+// Amounts stay in the same on-chain wallet; categories are a tracking view.
 // ---------------------------------------------------------------------------
 type CategoryRule = {
   id: string; // unique per category (crypto.randomUUID() when created)
   name: string;
   percent: number; // 0–100
-  goal: number; // 0 = no goal
   icons?: string; // icon path under /public, stored with the category
   color?: string;
 };
 
 type CategoryBalance = CategoryRule & {
-  allocated: number; // total earned by this category so far (capped by goal)
-  withdrawn: number;
   available: number; // what can be withdrawn right now
-  goalReached: boolean;
 };
 
 // Stellar amounts have at most 7 decimals; rounding avoids 0.30000000000000004
@@ -101,33 +95,18 @@ const round7 = (n: number) => Math.round(n * 1e7) / 1e7;
 
 function allocate(
   rules: CategoryRule[],
-  incoming: Incoming[],
+  balance: number,
   withdrawn: Record<string, number> = {}
-): { categories: CategoryBalance[]; unallocated: number } {
-  const successfulIncoming = incoming.filter((tx) => tx.amount > 0);
-  const received = successfulIncoming.reduce((sum, tx) => sum + tx.amount, 0);
-
-  const categories = rules.map((r) => {
-    const allocated = successfulIncoming.reduce((sum, tx) => {
-      const contribution = round7((tx.amount * r.percent) / 100);
-      return round7(r.goal > 0 ? Math.min(sum + contribution, r.goal) : sum + contribution);
-    }, 0);
+): CategoryBalance[] {
+  return rules.map((r) => {
+    const allocated = round7((Math.max(balance, 0) * r.percent) / 100);
     const taken = withdrawn[r.id] ?? 0;
 
     return {
       ...r,
-      allocated,
-      withdrawn: taken,
       available: round7(Math.max(allocated - taken, 0)),
-      goalReached: r.goal > 0 && allocated >= r.goal,
     };
   });
-
-  // Whatever the categories did not take (percentages under 100%, or goals hit)
-  const allocatedTotal = categories.reduce((sum, c) => sum + c.allocated, 0);
-  const unallocated = round7(Math.max(received - allocatedTotal, 0));
-
-  return { categories, unallocated };
 }
 
 // Each category stores its own icon path; this is the fallback if it is missing.
@@ -503,7 +482,7 @@ function WithdrawDialog({
 export default function Dashboard({ email, network }: DashboardProps) {
   const [range, setRange] = useState<Range>("7d");
 
-  // Each successful incoming payment contributes its percentage to each category.
+  // Category amounts are percentages of the current native balance.
   const [rules, setRules] = useState<CategoryRule[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [page, setPage] = useState(1);
@@ -523,19 +502,13 @@ export default function Dashboard({ email, network }: DashboardProps) {
   const nativeBalance = walletData.find((slice) => slice.name === nativeSymbol)?.amount ?? 0;
   const isEmptyWallet = !loadingBalance && nativeBalance === 0;
 
-  const { categories } = allocate(rules, incoming, withdrawn);
+  const categories = allocate(rules, nativeBalance, withdrawn);
 
-  // Show how the current wallet balance is divided across categories. Any funds
-  // outside category allocations get their own slice. Scale allocations down if
-  // they briefly exceed the live balance (for example, immediately after a send).
-  const categoryTotal = categories.reduce((sum, category) => sum + category.available, 0);
-  const categoryScale = categoryTotal > nativeBalance && categoryTotal > 0
-    ? nativeBalance / categoryTotal
-    : 1;
+  // Show the native balance by category, with any remainder left unassigned.
   const categorySlices = categories
     .map((category) => ({
       name: category.name,
-      amount: round7(category.available * categoryScale),
+      amount: category.available,
       color: category.color,
     }))
     .filter((slice) => slice.amount > 0);
@@ -601,6 +574,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
     // Start clean so data from a previous account/network never lingers
     setWalletData([]);
     setIncoming([]);
+    setWithdrawn({});
 
     const config =
       network === "stellar"
@@ -678,7 +652,10 @@ export default function Dashboard({ email, network }: DashboardProps) {
       inFlight = false;
       if (cancelled) return;
 
-      if (slices) setWalletData(slices);
+      if (slices) {
+        setWalletData(slices);
+        setWithdrawn({});
+      }
       if (incomingTx) {
         if (loadFullHistory) historyComplete = true;
         setIncoming((current) => {
@@ -965,8 +942,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
         ) : (
           <ul className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
             {categories.map((c, i) => {
-              const progress =
-                c.goal > 0 ? Math.min((c.allocated / c.goal) * 100, 100) : c.percent;
+              const progress = c.percent;
 
               return (
                 <li key={c.id}>
@@ -1002,13 +978,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
                     <p className="mt-2 text-lg font-semibold tabular-nums tracking-tight text-foreground">
                       {formatAmount(c.available)}
                     </p>
-                    <p className="mt-0.5 text-xs text-foreground/50">
-                      {c.goal > 0
-                        ? c.goalReached
-                          ? `Goal reached · ${formatAmount(c.goal)}`
-                          : `Goal ${formatAmount(c.goal)}`
-                        : "No goal"}
-                    </p>
+                    <p className="mt-0.5 text-xs text-foreground/50">of current balance</p>
 
                     <div
                       aria-hidden="true"
@@ -1055,7 +1025,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
 
         {!loadingCategories && pageInfo.total > 0 && pageInfo.totalPercent < 100 && (
           <p className="mt-3 text-xs text-foreground/50">
-            {Math.round((100 - pageInfo.totalPercent) * 100) / 100}% of incoming funds is
+            {Math.round((100 - pageInfo.totalPercent) * 100) / 100}% of the current balance is
             not assigned to a category.
           </p>
         )}
