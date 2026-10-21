@@ -236,7 +236,7 @@ export default function Categories({ email, network }: CategoriesProps) {
                     setLoading(true);
                   }}
                   aria-pressed={categoryAsset === asset}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${categoryAsset === asset ? "bg-background text-foreground shadow-sm" : "text-foreground/55 hover:text-foreground"}`}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${categoryAsset === asset ? "bg-emerald-500/15 text-emerald-400 shadow-sm ring-1 ring-inset ring-emerald-500/30" : "text-emerald-500 hover:bg-emerald-500/10 hover:text-emerald-400"}`}
                 >
                   {asset}
                 </button>
