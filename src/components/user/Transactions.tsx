@@ -27,6 +27,8 @@ type TransactionProps = {
 }
 
 type Filter = "All" | "Withdraw" | "Receive" | "Swap";
+type TransactionCursors = { BOT: string | null; PIE: string | null; XLM: string | null };
+const emptyCursors = (): TransactionCursors => ({ BOT: null, PIE: null, XLM: null });
 const filters: Filter[] = ["All", "Withdraw", "Receive", "Swap"];
 const skeletonClass = "animate-pulse motion-reduce:animate-none rounded-md bg-foreground/10";
 
@@ -50,16 +52,16 @@ export default function Transactions({ email, network } : TransactionProps) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("All");
   const [page, setPage] = useState(1);
-  const [cursor, setCursor] = useState("");
-  const [cursorHistory, setCursorHistory] = useState<string[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [cursor, setCursor] = useState<TransactionCursors>(emptyCursors);
+  const [cursorHistory, setCursorHistory] = useState<TransactionCursors[]>([]);
+  const [nextCursor, setNextCursor] = useState<TransactionCursors | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     setPage(1);
-    setCursor("");
+    setCursor(emptyCursors());
     setCursorHistory([]);
     setNextCursor(null);
     setHasMore(false);
@@ -92,12 +94,16 @@ export default function Transactions({ email, network } : TransactionProps) {
       setError("");
 
       try {
-        const response = await Fetch_to("POST", route, { email, cursor: cursor || null });
-        if (!response.success) {
-          throw new Error(response.message || "Could not load transactions.");
+        const assets: (keyof TransactionCursors)[] = isBotChainNetwork(network) ? ["BOT", "PIE"] : ["XLM"];
+        const responses = await Promise.all(assets.map((asset) =>
+          Fetch_to("POST", route, { email, cursor: cursor[asset], asset })
+        ));
+        const failedResponse = responses.find((response) => !response.success);
+        if (failedResponse) {
+          throw new Error(failedResponse.message || "Could not load transactions.");
         }
 
-        const records = response.data?.transactions ?? [];
+        const records = responses.flatMap((response) => response.data?.transactions ?? []);
         const mapped: Transaction[] = records.map((record: {
           id: string;
           hash?: string;
@@ -129,12 +135,18 @@ export default function Transactions({ email, network } : TransactionProps) {
           assetOut: record.assetOut,
           date: record.date,
           hash: record.hash ?? record.id,
-        }));
+        })).sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+
+        const updatedCursors = emptyCursors();
+        responses.forEach((response, index) => {
+          updatedCursors[assets[index]] = response.data?.nextCursor ?? null;
+        });
+        const more = responses.some((response) => response.data?.hasMore === true);
 
         if (!cancelled) {
           setTransactions(mapped);
-          setNextCursor(response.data?.nextCursor ?? null);
-          setHasMore(response.data?.hasMore === true);
+          setNextCursor(more ? updatedCursors : null);
+          setHasMore(more);
         }
       } catch (err) {
         if (!cancelled) {
@@ -162,9 +174,12 @@ export default function Transactions({ email, network } : TransactionProps) {
       .some((value) => value.toLowerCase().includes(query)))
   );
   const completedCount = transactions.filter((t) => t.status === "Completed").length;
-  const receivedTotal = transactions
-    .filter((t) => t.type === "Receive" && t.status === "Completed")
-    .reduce((sum, t) => sum + t.amount, 0);
+  const receivedTotals = transactions.reduce<Record<string, number>>((totals, transaction) => {
+    if (transaction.type === "Receive" && transaction.status === "Completed") {
+      totals[transaction.asset] = (totals[transaction.asset] ?? 0) + transaction.amount;
+    }
+    return totals;
+  }, {});
   return (
     <div className="space-y-6 text-foreground">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -172,7 +187,7 @@ export default function Transactions({ email, network } : TransactionProps) {
           <p className="text-sm font-medium text-primary">Wallet activity</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Transactions</h1>
           <p className="mt-1 text-sm text-foreground/55">
-            Browse recent {walletNetworkLabel(network)} activity, 10 transactions at a time.
+            Browse recent {walletNetworkLabel(network)} activity{isBotChainNetwork(network) ? " for BOT and PIE" : ""}.
           </p>
         </div>
         <button
@@ -192,7 +207,7 @@ export default function Transactions({ email, network } : TransactionProps) {
           <p className="mt-2 text-2xl font-semibold tabular-nums">
             {loading ? <span aria-hidden="true" className={`inline-block h-7 w-10 align-middle ${skeletonClass}`} /> : transactions.length}
           </p>
-          <p className="mt-1 text-xs text-foreground/45">Up to 10 loaded at a time</p>
+          <p className="mt-1 text-xs text-foreground/45">Showing activity for each wallet token</p>
         </div>
         <div className={`${cardClass} p-4`}>
           <p className="text-xs font-medium text-foreground/50">Completed on this page</p>
@@ -203,18 +218,20 @@ export default function Transactions({ email, network } : TransactionProps) {
         </div>
         <div className={`${cardClass} p-4`}>
           <p className="text-xs font-medium text-foreground/50">Received on this page</p>
-          <p className="mt-2 text-2xl font-semibold tabular-nums">
+          <div className="mt-2 flex min-h-8 flex-wrap items-baseline gap-x-2 gap-y-1 text-2xl font-semibold tabular-nums">
             {loading ? (
               <span aria-hidden="true" className={`inline-block h-7 w-28 align-middle ${skeletonClass}`} />
             ) : (
-              <>
-                {new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(receivedTotal)}
-                <span className="ml-1.5 text-sm font-medium text-foreground/50">
-                  {network === "otterpie_bot_chain" ? "PIE" : isBotChainNetwork(network) ? "BOT" : "XLM"}
-                </span>
-              </>
+              Object.keys(receivedTotals).length > 0
+                ? Object.entries(receivedTotals).map(([asset, amount]) => (
+                    <span key={asset} className="whitespace-nowrap">
+                      {new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(amount)}
+                      <span className="ml-1 text-sm font-medium text-foreground/50">{asset}</span>
+                    </span>
+                  ))
+                : <span>0</span>
             )}
-          </p>
+          </div>
           <p className="mt-1 text-xs text-foreground/45">Completed incoming payments</p>
         </div>
       </section>
@@ -280,7 +297,7 @@ export default function Transactions({ email, network } : TransactionProps) {
             <div aria-hidden="true" className="hidden overflow-hidden md:block">
               <div className="space-y-0 divide-y divide-foreground/8">
                 {Array.from({ length: 5 }).map((_, index) => (
-                  <div key={index} className="grid grid-cols-[1.5fr_1fr_0.7fr_0.7fr_1fr] items-center gap-4 px-5 py-5">
+                  <div key={index} className="grid grid-cols-[1.5fr_1fr_0.7fr_0.7fr_0.8fr_1.2fr] items-center gap-4 px-5 py-5">
                     <span className={`h-4 w-3/4 ${skeletonClass}`} />
                     <span className={`h-4 w-2/3 ${skeletonClass}`} />
                     <span className={`h-5 w-16 rounded-full ${skeletonClass}`} />
@@ -313,11 +330,12 @@ export default function Transactions({ email, network } : TransactionProps) {
               ))}
             </div>
             <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[760px] text-left">
+              <table className="w-full min-w-[900px] text-left">
                 <thead className="bg-foreground/[0.025] text-[11px] font-medium uppercase tracking-wide text-foreground/45">
                   <tr>
                     <th className="px-5 py-3">Transaction</th>
                     <th className="px-5 py-3">Date</th>
+                    <th className="px-5 py-3">Token</th>
                     <th className="px-5 py-3">Status</th>
                     <th className="px-5 py-3 text-right">Amount</th>
                     <th className="px-5 py-3">Transaction ID</th>
@@ -338,6 +356,7 @@ export default function Transactions({ email, network } : TransactionProps) {
                         </div>
                       </td>
                       <td className="px-5 py-4 text-sm text-foreground/65">{formatDate(transaction.date)}</td>
+                      <td className="px-5 py-4"><TokenBadge transaction={transaction} /></td>
                       <td className="px-5 py-4"><StatusBadge status={transaction.status} /></td>
                       <td className="px-5 py-4 text-right text-sm font-semibold tabular-nums">
                         <TransactionAmount transaction={transaction} />
@@ -362,7 +381,7 @@ export default function Transactions({ email, network } : TransactionProps) {
               <button
                 type="button"
                 onClick={() => {
-                  const previousCursor = cursorHistory[cursorHistory.length - 1] ?? "";
+                  const previousCursor = cursorHistory[cursorHistory.length - 1] ?? emptyCursors();
                   setCursorHistory((history) => history.slice(0, -1));
                   setCursor(previousCursor);
                   setPage((current) => Math.max(1, current - 1));
@@ -412,7 +431,10 @@ function TransactionCard({ transaction, network }: { transaction: Transaction; n
         </p>
       </div>
       <div className="mt-3 flex items-center justify-between gap-3 pl-12">
-        <p className="text-xs text-foreground/50">{formatDate(transaction.date)}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs text-foreground/50">{formatDate(transaction.date)}</p>
+          <TokenBadge transaction={transaction} />
+        </div>
         <StatusBadge status={transaction.status} />
       </div>
       <div className="mt-3 pl-12">
@@ -437,6 +459,17 @@ function ExplorerLink({ network, hash }: { network: string; hash: string }) {
       <span>{shortAddress(hash)}</span>
       <span className="font-sans text-[11px]">View on {explorerName(network)} ↗</span>
     </a>
+  );
+}
+
+function TokenBadge({ transaction }: { transaction: Transaction }) {
+  const label = transaction.type === "Swap" && transaction.assetIn && transaction.assetOut
+    ? `${transaction.assetIn} → ${transaction.assetOut}`
+    : transaction.asset === "XLM" ? "XLM · Stellar" : transaction.asset;
+  return (
+    <span className="inline-flex rounded-md bg-foreground/5 px-2 py-1 text-xs font-medium text-foreground/70">
+      {label}
+    </span>
   );
 }
 

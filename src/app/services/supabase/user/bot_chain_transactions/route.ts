@@ -47,7 +47,7 @@ type TokenTransfer = {
   from: { hash: string };
   to: { hash: string };
   total: { value: string; decimals?: string | null };
-  token: { address: string; decimals?: string | null };
+  token: { address?: string; address_hash?: string; decimals?: string | null };
 };
 
 function decodePageCursor(cursor: unknown): Record<string, string> | null {
@@ -134,7 +134,9 @@ export async function POST(params: NextRequest) {
 
       const me = address.toLowerCase();
       const transactions: Incoming[] = (body?.items ?? [])
-        .filter((transfer) => transfer.token?.address?.toLowerCase() === BOT_CHAIN_PIE_TOKEN_ADDRESS.toLowerCase())
+        .filter((transfer) =>
+          (transfer.token?.address_hash ?? transfer.token?.address)?.toLowerCase() === BOT_CHAIN_PIE_TOKEN_ADDRESS.toLowerCase()
+        )
         .map((transfer) => {
           const from = transfer.from?.hash ?? null;
           const to = transfer.to?.hash ?? null;
