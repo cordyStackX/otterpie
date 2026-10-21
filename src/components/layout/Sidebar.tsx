@@ -511,40 +511,42 @@ export default function Sidebar({
                 <p className="mt-1 break-all font-mono text-xs leading-relaxed text-foreground/80">
                   {wallet_address || "Not available"}
                 </p>
-                <button
-                  type="button"
-                  onClick={handleCopyAddress}
-                  disabled={!wallet_address}
-                  className="mt-3 inline-flex items-center gap-2 rounded-md border border-foreground/15 px-3 py-1.5 text-xs font-medium text-foreground/75 transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {copiedAddress ? (
-                    <>
-                      <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4 text-emerald-600">
-                        <path d="m4 10 4 4 8-8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                      Copied
-                    </>
-                  ) : (
-                    <>
-                      <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                        <rect x="7" y="7" width="9" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
-                        <path d="M13 7V4.5A1.5 1.5 0 0 0 11.5 3h-7A1.5 1.5 0 0 0 3 4.5v8A1.5 1.5 0 0 0 4.5 14H7" stroke="currentColor" strokeWidth="1.4" />
-                      </svg>
-                      Copy address
-                    </>
-                  )}
-                </button>
-                {accountExplorer && (
-                  <a
-                    href={accountExplorer.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="ml-2 inline-flex items-center gap-1 rounded-md border border-foreground/15 px-3 py-1.5 text-xs font-medium text-foreground/75 transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCopyAddress}
+                    disabled={!wallet_address}
+                    className="inline-flex items-center gap-2 rounded-md border border-foreground/15 px-3 py-1.5 text-xs font-medium text-foreground/75 transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    {accountExplorer.label}
-                    <span aria-hidden="true">↗</span>
-                  </a>
-                )}
+                    {copiedAddress ? (
+                      <>
+                        <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4 text-emerald-600">
+                          <path d="m4 10 4 4 8-8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                          <rect x="7" y="7" width="9" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+                          <path d="M13 7V4.5A1.5 1.5 0 0 0 11.5 3h-7A1.5 1.5 0 0 0 3 4.5v8A1.5 1.5 0 0 0 4.5 14H7" stroke="currentColor" strokeWidth="1.4" />
+                        </svg>
+                        Copy address
+                      </>
+                    )}
+                  </button>
+                  {accountExplorer && (
+                    <a
+                      href={accountExplorer.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded-md border border-foreground/15 px-3 py-1.5 text-xs font-medium text-foreground/75 transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    >
+                      {accountExplorer.label}
+                      <span aria-hidden="true">↗</span>
+                    </a>
+                  )}
+                </div>
 
                 <div className="mt-5 border-t border-foreground/10 pt-5 text-center">
                   <p className="text-sm font-semibold">Scan to pay or deposit to this wallet</p>
