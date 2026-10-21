@@ -84,7 +84,7 @@ export default function LoginForm() {
             required
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
-            placeholder="Username or you@tindahan.com"
+            placeholder="Username or you@example.com"
             autoComplete="username"
           />
           <TextField
