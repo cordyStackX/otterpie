@@ -518,7 +518,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
     ? [{ name: "Empty", amount: 1 }]
     : [
         ...categorySlices,
-        ...(unassignedAmount > 0 ? [{ name: "Unassigned", amount: unassignedAmount }] : []),
+        ...(unassignedAmount > 0 ? [{ name: "Unassigned", amount: unassignedAmount, color: "#64748b" }] : []),
       ];
 
   const activeRange = ranges.find((r) => r.key === range)!;
@@ -775,13 +775,8 @@ export default function Dashboard({ email, network }: DashboardProps) {
               </div>
               {!isEmptyWallet && pieData.length > 0 && (
                 <ul aria-label="Wallet balance by category" className="mt-2 max-h-20 space-y-1 overflow-y-auto">
-                  {pieData.map((slice, index) => (
-                    <li key={slice.name} className="flex min-w-0 items-center gap-2 text-xs">
-                      <span
-                        aria-hidden="true"
-                        className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: slice.color || colorForIndex(index) }}
-                      />
+                  {pieData.map((slice) => (
+                    <li key={slice.name} className="flex min-w-0 items-center justify-between gap-2 text-xs">
                       <span className="min-w-0 flex-1 truncate text-foreground/65">{slice.name}</span>
                       <span className="shrink-0 tabular-nums text-foreground/80">
                         {formatAmount(slice.amount)}
@@ -951,7 +946,8 @@ export default function Dashboard({ email, network }: DashboardProps) {
                     onClick={() => setSelected({ id: c.id, name: c.name, amount: c.available })}
                     aria-haspopup="dialog"
                     aria-label={`Withdraw from ${c.name}, balance ${formatAmount(c.available)}`}
-                    className="relative isolate block w-full overflow-hidden rounded-xl border border-foreground/10 bg-background px-4 py-3.5 text-left outline-none transition-colors hover:border-primary/40 hover:bg-foreground/[0.02] focus-visible:ring-2 focus-visible:ring-primary/40"
+                    className="relative isolate block w-full overflow-hidden rounded-xl border border-foreground/10 border-l-4 bg-background px-4 py-3.5 text-left outline-none transition-colors hover:bg-foreground/[0.02] focus-visible:ring-2 focus-visible:ring-primary/40"
+                    style={{ borderLeftColor: c.color || colorForIndex(i) }}
                   >
                     {/* Otter mascot as a soft background on the right of the card */}
                     <Image
@@ -988,7 +984,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
                         className="h-full rounded-full"
                         style={{
                           width: `${progress}%`,
-                          backgroundColor: colorForIndex(i),
+                          backgroundColor: c.color || colorForIndex(i),
                         }}
                       />
                     </div>
