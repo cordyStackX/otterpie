@@ -107,22 +107,35 @@ export default async function Security(req: NextRequest) {
         cleanupRetryMap(now);
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
-            email: string
+            email?: unknown;
+            data?: { email?: unknown };
+            final_data?: { email?: unknown };
         };
+        // auth_jwt stores the session identity inside `data`; older sessions
+        // and other token issuers may put it at the top level or `final_data`.
+        const email = [decoded.email, decoded.data?.email, decoded.final_data?.email]
+            .find((value): value is string => typeof value === "string" && value.trim().length > 0)
+            ?.trim();
 
-        const { error } = await supabaseServer
-        .from("tbl_auth")
-        .select("email")
-        .eq("email", decoded.email)
-        .limit(1);
-
-        if (error) {
+        if (!email) {
             return {
-                error: NextResponse.json({ error: "Unauthorized" }, { status: 402 }),
+                error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
             };
         }
 
-        return { error: false, email: decoded.email };
+        const { data: account, error } = await supabaseServer
+        .from("tbl_auth")
+        .select("email")
+        .eq("email", email)
+        .maybeSingle();
+
+        if (error || !account) {
+            return {
+                error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+            };
+        }
+
+        return { error: false, email: account.email };
 
     } catch (err) {
         console.error("Security error:", err);

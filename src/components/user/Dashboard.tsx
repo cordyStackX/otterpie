@@ -1139,6 +1139,14 @@ export default function Dashboard({ email, network }: DashboardProps) {
           from={swapDirection.from}
           to={swapDirection.to}
           balance={nativeBalance}
+          email={email}
+          onSwapped={async () => {
+            const response = await Fetch_to("POST", routes.bot_chain_balance, { email }, undefined, 1);
+            if (response.success) {
+              setWalletData(toSlices(response.data.balances));
+              setLastUpdated(new Date());
+            }
+          }}
           onClose={() => setSwapDirection(null)}
         />
       )}
@@ -1150,40 +1158,104 @@ function SwapPreviewDialog({
   from,
   to,
   balance,
+  onSwapped,
   onClose,
 }: {
   from: "BOT" | "PIE";
   to: "BOT" | "PIE";
   balance: number;
+  email: string;
+  onSwapped: () => Promise<void>;
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [amount, setAmount] = useState("");
-  const parsedAmount = Number(amount);
-  const output = Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : 0;
+  const [slippage, setSlippage] = useState("1");
+  const [password, setPassword] = useState("");
+  const [quote, setQuote] = useState<{ amountOut: string; minimumReceived: string; slippage: number } | null>(null);
+  const [busy, setBusy] = useState<"quote" | "swap" | null>(null);
+  const [error, setError] = useState("");
+  const [txHash, setTxHash] = useState("");
   const formatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 7 });
+  const direction = from === "PIE" ? "PIE_TO_BOT" : "BOT_TO_PIE";
+  const canQuote = Number.isFinite(Number(amount)) && Number(amount) > 0 && Number(amount) <= balance;
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (dialog && !dialog.open) dialog.showModal();
   }, []);
 
+  const requestQuote = async () => {
+    setError("");
+    setQuote(null);
+    setBusy("quote");
+    try {
+      const response = await Fetch_to("POST", routes.swap, {
+        action: "quote",
+        direction,
+        amount: amount.trim(),
+        slippage: Number(slippage),
+      }, undefined, 1);
+      if (!response.success) throw new Error(response.message || "Could not get a swap quote.");
+      const result = response.data as { quote?: { amountOut: string; minimumReceived: string; slippage: number } };
+      if (!result.quote) throw new Error("The swap service returned an invalid quote.");
+      setQuote(result.quote);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not get a swap quote.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const submitSwap = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!quote) return;
+    if (!password) {
+      setError("Enter your account password to confirm this swap.");
+      return;
+    }
+    setError("");
+    setBusy("swap");
+    try {
+      const response = await Fetch_to("POST", routes.swap, {
+        action: "swap",
+        direction,
+        amount: amount.trim(),
+        slippage: quote.slippage,
+        password,
+      }, undefined, 1);
+      if (!response.success) throw new Error(response.message || "The swap could not be submitted.");
+      const result = response.data as { txHash?: string };
+      setTxHash(result.txHash || "");
+      setPassword("");
+      await onSwapped();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The swap could not be submitted.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <dialog
       ref={dialogRef}
       aria-labelledby="swap-preview-title"
       onClose={onClose}
+      onCancel={(event) => {
+        if (busy) event.preventDefault();
+      }}
       onClick={(event) => {
-        if (event.target === dialogRef.current) dialogRef.current?.close();
+        if (!busy && event.target === dialogRef.current) dialogRef.current?.close();
       }}
       className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-foreground/10 bg-background p-0 text-foreground shadow-xl backdrop:bg-foreground/30 backdrop:backdrop-blur-[2px]"
     >
-      <div className="p-6">
+      <form onSubmit={submitSwap} className="p-6">
         <div className="flex items-start justify-between gap-4">
           <h2 id="swap-preview-title" className="text-lg font-semibold tracking-tight">Swap {from} to {to}</h2>
           <button
             type="button"
             onClick={() => dialogRef.current?.close()}
+            disabled={busy !== null}
             aria-label="Close"
             className="-mr-2 -mt-1 flex h-8 w-8 items-center justify-center rounded-md text-foreground/60 outline-none transition-colors hover:bg-foreground/5 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/40"
           >
@@ -1198,27 +1270,81 @@ function SwapPreviewDialog({
           max={balance}
           step="any"
           value={amount}
-          onChange={(event) => setAmount(event.target.value)}
+          onChange={(event) => { setAmount(event.target.value); setQuote(null); setError(""); }}
           placeholder="0"
+          disabled={busy !== null || Boolean(txHash)}
           className="mt-1.5 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/25"
         />
         <p className="mt-1 text-xs text-foreground/50">Available: {formatter.format(balance)} {from}</p>
-        <div className="mt-4 rounded-lg bg-foreground/5 px-4 py-3">
-          <p className="text-xs text-foreground/55">Estimated output ({to})</p>
-          <p className="mt-1 text-xl font-semibold tabular-nums">{formatter.format(output)} {to}</p>
-          <p className="mt-1 text-xs text-foreground/50">Demo rate: 1 {from} = 1 {to}</p>
-        </div>
+        <label htmlFor="swap-slippage" className="mt-4 block text-sm font-medium">Max slippage (%)</label>
+        <input
+          id="swap-slippage"
+          type="number"
+          min="0.1"
+          max="5"
+          step="0.1"
+          value={slippage}
+          onChange={(event) => { setSlippage(event.target.value); setQuote(null); }}
+          disabled={busy !== null || Boolean(txHash)}
+          className="mt-1.5 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/25 disabled:opacity-50"
+        />
+        {quote && (
+          <div className="mt-4 rounded-lg bg-foreground/5 px-4 py-3">
+            <p className="text-xs text-foreground/55">Estimated output</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums">{formatter.format(Number(quote.amountOut))} {to}</p>
+            <p className="mt-1 text-xs text-foreground/50">Minimum received: {formatter.format(Number(quote.minimumReceived))} {to} · BDEX V2 fee: 0.3%</p>
+          </div>
+        )}
         <p className="mt-4 rounded-md border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-xs text-yellow-200">
-          Demo preview only. This does not send tokens or represent a market price.
+          Real BOT Chain mainnet swap. BOT is also needed for gas. Review the quote and minimum output before confirming; swaps cannot be reversed.
         </p>
+        {!txHash && !quote && (
+          <button
+            type="button"
+            onClick={requestQuote}
+            disabled={!canQuote || busy !== null || !Number.isFinite(Number(slippage)) || Number(slippage) < 0.1 || Number(slippage) > 5}
+            className="mt-5 w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-background outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {busy === "quote" ? "Getting quote…" : "Get swap quote"}
+          </button>
+        )}
+        {quote && !txHash && (
+          <>
+            <label htmlFor="swap-password" className="mt-4 block text-sm font-medium">Confirm with your account password</label>
+            <input
+              id="swap-password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => { setPassword(event.target.value); setError(""); }}
+              disabled={busy !== null}
+              required
+              className="mt-1.5 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/25 disabled:opacity-50"
+            />
+            <button
+              type="submit"
+              disabled={busy !== null || !password}
+              className="mt-4 w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-background outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {busy === "swap" ? "Submitting swap…" : `Confirm swap ${from} to ${to}`}
+            </button>
+          </>
+        )}
+        {txHash && (
+          <div className="mt-4 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">
+            Swap confirmed. Transaction: <span className="break-all font-mono">{txHash}</span>
+          </div>
+        )}
+        {error && <p role="alert" className="mt-3 text-sm text-red-500">{error}</p>}
         <button
           type="button"
           onClick={() => dialogRef.current?.close()}
-          className="mt-5 w-full rounded-md border border-foreground/15 px-4 py-2.5 text-sm font-medium text-foreground/80 outline-none transition-colors hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-primary/40"
+          disabled={busy !== null}
+          className="mt-4 w-full rounded-md border border-foreground/15 px-4 py-2.5 text-sm font-medium text-foreground/80 outline-none transition-colors hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50"
         >
-          Close preview
+          {txHash ? "Done" : "Cancel"}
         </button>
-      </div>
+      </form>
     </dialog>
   );
 }

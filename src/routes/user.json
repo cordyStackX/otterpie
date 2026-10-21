@@ -6,5 +6,6 @@
   "categories" : "/services/supabase/user/categories",
   "modify_categories" : "/services/supabase/user/modify_categories",
   "modify_user_data" : "/services/supabase/user/modify_user_data",
-  "show_secrets" : "/services/supabase/user/show_secrets"
+  "show_secrets" : "/services/supabase/user/show_secrets",
+  "swap" : "/services/supabase/user/swap"
 }
