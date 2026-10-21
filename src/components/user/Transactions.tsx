@@ -29,6 +29,16 @@ const cardClass = "rounded-xl border border-foreground/10 bg-background";
 const shortAddress = (address: string) =>
   address.length > 15 ? `${address.slice(0, 7)}…${address.slice(-5)}` : address;
 
+const explorerUrl = (network: string, hash: string) => {
+  const encodedHash = encodeURIComponent(hash);
+  if (network === "stellar") return `https://stellar.expert/explorer/public/tx/${encodedHash}`;
+  if (network === "bot_chain") return `https://scan.botchain.ai/tx/${encodedHash}`;
+  return null;
+};
+
+const explorerName = (network: string) =>
+  network === "stellar" ? "Stellar Expert" : "BOT Chain Explorer";
+
 export default function Transactions({ email, network } : TransactionProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [search, setSearch] = useState("");
@@ -67,6 +77,7 @@ export default function Transactions({ email, network } : TransactionProps) {
         const records = response.data?.transactions ?? [];
         const mapped: Transaction[] = records.map((record: {
           id: string;
+          hash?: string;
           date: string;
           amount: string;
           asset: string;
@@ -83,7 +94,7 @@ export default function Transactions({ email, network } : TransactionProps) {
           amount: Number(record.amount),
           asset: record.asset,
           date: record.date,
-          hash: record.id,
+          hash: record.hash ?? record.id,
         }));
 
         if (!cancelled) setTransactions(mapped);
@@ -120,7 +131,9 @@ export default function Transactions({ email, network } : TransactionProps) {
         <div>
           <p className="text-sm font-medium text-primary">Wallet activity</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Transactions</h1>
-          <p className="mt-1 text-sm text-foreground/55">Review and search your recent wallet activity.</p>
+          <p className="mt-1 text-sm text-foreground/55">
+            Review and search your recent {network === "stellar" ? "Stellar" : "BOT Chain"} wallet activity.
+          </p>
         </div>
         <button
           type="button"
@@ -215,7 +228,7 @@ export default function Transactions({ email, network } : TransactionProps) {
           <>
             <div className="divide-y divide-foreground/8 md:hidden">
               {visibleTransactions.map((transaction) => (
-                <TransactionCard key={transaction.id} transaction={transaction} />
+                <TransactionCard key={transaction.id} transaction={transaction} network={network} />
               ))}
             </div>
             <div className="hidden overflow-x-auto md:block">
@@ -248,7 +261,9 @@ export default function Transactions({ email, network } : TransactionProps) {
                       <td className={`px-5 py-4 text-right text-sm font-semibold tabular-nums ${transaction.type === "Receive" ? "text-emerald-600" : "text-foreground"}`}>
                         {transaction.type === "Receive" ? "+" : "−"}{formatAmount(transaction.amount)} {transaction.asset}
                       </td>
-                      <td className="px-5 py-4 font-mono text-xs text-foreground/50">{shortAddress(transaction.hash)}</td>
+                      <td className="px-5 py-4 font-mono text-xs">
+                        <ExplorerLink network={network} hash={transaction.hash} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -261,7 +276,7 @@ export default function Transactions({ email, network } : TransactionProps) {
   );
 }
 
-function TransactionCard({ transaction }: { transaction: Transaction }) {
+function TransactionCard({ transaction, network }: { transaction: Transaction; network: string }) {
   return (
     <article className="p-4">
       <div className="flex items-start justify-between gap-3">
@@ -280,7 +295,28 @@ function TransactionCard({ transaction }: { transaction: Transaction }) {
         <p className="text-xs text-foreground/50">{formatDate(transaction.date)}</p>
         <StatusBadge status={transaction.status} />
       </div>
+      <div className="mt-3 pl-12">
+        <ExplorerLink network={network} hash={transaction.hash} />
+      </div>
     </article>
+  );
+}
+
+function ExplorerLink({ network, hash }: { network: string; hash: string }) {
+  const href = explorerUrl(network, hash);
+  if (!href) return <span className="text-foreground/50">{shortAddress(hash)}</span>;
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`View transaction ${hash} on ${explorerName(network)}`}
+      className="inline-flex items-center gap-1.5 text-primary transition-colors hover:underline"
+    >
+      <span>{shortAddress(hash)}</span>
+      <span className="font-sans text-[11px]">View on {explorerName(network)} ↗</span>
+    </a>
   );
 }
 

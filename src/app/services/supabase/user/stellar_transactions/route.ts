@@ -16,6 +16,7 @@ const HISTORY_MONTHS = 12; // the dashboard shows up to 12 months
 
 type Incoming = {
   id: string;
+  hash: string;
   date: string; // ISO timestamp
   amount: string;
   asset: string; // "XLM" or the asset code
@@ -79,6 +80,7 @@ export async function POST(params: NextRequest) {
         if (r.type === "create_account" && r.account === address) {
           transactions.push({
             id: r.id,
+            hash: r.transaction_hash ?? r.id,
             date: r.created_at,
             amount: r.starting_balance,
             asset: "XLM",
@@ -100,6 +102,7 @@ export async function POST(params: NextRequest) {
         if (isPayment && (r.to === address || r.from === address)) {
           transactions.push({
             id: r.id,
+            hash: r.transaction_hash ?? r.id,
             date: r.created_at,
             amount: r.amount,
             asset: r.asset_type === "native" ? "XLM" : r.asset_code,
