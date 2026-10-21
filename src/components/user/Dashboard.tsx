@@ -30,6 +30,7 @@ const ranges = [
 ] as const;
 
 type Range = (typeof ranges)[number]["key"];
+type SwapDirection = "PIE_TO_BOT" | "BOT_TO_PIE" | "BOT_TO_USDT" | "USDT_TO_BOT";
 
 // Colors cycle through primary/secondary at different opacities so any number
 // of user-made categories stay distinguishable within the two-color palette.
@@ -497,7 +498,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
   const [selected, setSelected] = useState<Category | null>(null);
   const [incoming, setIncoming] = useState<Incoming[]>([]);
   const [selectedAsset, setSelectedAsset] = useState<"BOT" | "PIE">("PIE");
-  const [swapDirection, setSwapDirection] = useState<{ from: "BOT" | "PIE"; to: "BOT" | "PIE" } | null>(null);
+  const [swapDirection, setSwapDirection] = useState<SwapDirection | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const networkConfig = getWalletNetworkConfig(network);
 
@@ -857,11 +858,11 @@ export default function Dashboard({ email, network }: DashboardProps) {
               {isBotChainNetwork(network) && (
                 <button
                   type="button"
-                  onClick={() => setSwapDirection(isPieSelected ? { from: "PIE", to: "BOT" } : { from: "BOT", to: "PIE" })}
+                  onClick={() => setSwapDirection(isPieSelected ? "PIE_TO_BOT" : "BOT_TO_PIE")}
                   disabled={loadingBalance || nativeBalance <= 0}
                   className="min-w-0 flex-1 rounded-md border border-emerald-400/50 bg-emerald-500/15 px-2 py-2 text-xs font-semibold text-emerald-300 outline-none transition-colors hover:bg-emerald-500/25 focus-visible:ring-2 focus-visible:ring-emerald-300/50 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
                 >
-                  Swap {isPieSelected ? "PIE to BOT" : "BOT to PIE"}
+                  {isPieSelected ? "Swap PIE to BOT" : "Swap"}
                 </button>
               )}
             </div>
@@ -1126,9 +1127,9 @@ export default function Dashboard({ email, network }: DashboardProps) {
       )}
       {swapDirection && (
         <SwapPreviewDialog
-          key={`${swapDirection.from}-${swapDirection.to}`}
-          from={swapDirection.from}
-          to={swapDirection.to}
+          key={swapDirection}
+          initialDirection={swapDirection}
+          allowDirectionSelect={!isPieSelected}
           balance={nativeBalance}
           email={email}
           onSwapped={async () => {
@@ -1148,30 +1149,32 @@ export default function Dashboard({ email, network }: DashboardProps) {
 }
 
 function SwapPreviewDialog({
-  from,
-  to,
+  initialDirection,
+  allowDirectionSelect,
   balance,
   onSwapped,
   onClose,
 }: {
-  from: "BOT" | "PIE";
-  to: "BOT" | "PIE";
+  initialDirection: SwapDirection;
+  allowDirectionSelect: boolean;
   balance: number;
   email: string;
   onSwapped: () => Promise<void>;
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const [direction, setDirection] = useState<SwapDirection>(initialDirection);
   const [amount, setAmount] = useState("");
   const [slippage, setSlippage] = useState("1");
   const [password, setPassword] = useState("");
-  const [quote, setQuote] = useState<{ amountOut: string; minimumReceived: string; slippage: number } | null>(null);
+  const [quote, setQuote] = useState<{ amountOut: string; minimumReceived: string; availableBalance: string; slippage: number } | null>(null);
   const [busy, setBusy] = useState<"quote" | "swap" | null>(null);
   const [error, setError] = useState("");
   const [txHash, setTxHash] = useState("");
   const formatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 7 });
-  const direction = from === "PIE" ? "PIE_TO_BOT" : "BOT_TO_PIE";
-  const canQuote = Number.isFinite(Number(amount)) && Number(amount) > 0 && Number(amount) <= balance;
+  const from = direction === "PIE_TO_BOT" ? "PIE" : direction === "USDT_TO_BOT" ? "USDT" : "BOT";
+  const to = direction === "PIE_TO_BOT" || direction === "USDT_TO_BOT" ? "BOT" : direction === "BOT_TO_USDT" ? "USDT" : "PIE";
+  const canQuote = Number.isFinite(Number(amount)) && Number(amount) > 0 && (from !== "BOT" || Number(amount) <= balance);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -1190,7 +1193,7 @@ function SwapPreviewDialog({
         slippage: Number(slippage),
       }, undefined, 1);
       if (!response.success) throw new Error(response.message || "Could not get a swap quote.");
-      const result = response.data as { quote?: { amountOut: string; minimumReceived: string; slippage: number } };
+      const result = response.data as { quote?: { amountOut: string; minimumReceived: string; availableBalance: string; slippage: number } };
       if (!result.quote) throw new Error("The swap service returned an invalid quote.");
       setQuote(result.quote);
     } catch (err) {
@@ -1255,12 +1258,35 @@ function SwapPreviewDialog({
             <span aria-hidden="true">×</span>
           </button>
         </div>
+        {allowDirectionSelect && (
+          <fieldset className="mt-5">
+            <legend className="text-sm font-medium">Swap pair</legend>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {([
+                ["BOT_TO_PIE", "BOT → PIE"],
+                ["BOT_TO_USDT", "BOT → USDT"],
+                ["USDT_TO_BOT", "USDT → BOT"],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => { setDirection(value); setAmount(""); setQuote(null); setError(""); setTxHash(""); }}
+                  aria-pressed={direction === value}
+                  disabled={busy !== null || Boolean(txHash)}
+                  className={`rounded-md border px-2 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50 ${direction === value ? "border-primary/50 bg-primary/10 text-primary" : "border-foreground/15 text-foreground/65 hover:bg-foreground/5"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        )}
         <label htmlFor="swap-amount" className="mt-5 block text-sm font-medium">You pay ({from})</label>
         <input
           id="swap-amount"
           type="number"
           min="0"
-          max={balance}
+          max={from === "BOT" ? balance : undefined}
           step="any"
           value={amount}
           onChange={(event) => { setAmount(event.target.value); setQuote(null); setError(""); }}
@@ -1268,7 +1294,13 @@ function SwapPreviewDialog({
           disabled={busy !== null || Boolean(txHash)}
           className="mt-1.5 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/25"
         />
-        <p className="mt-1 text-xs text-foreground/50">Available: {formatter.format(balance)} {from}</p>
+        <p className="mt-1 text-xs text-foreground/50">
+          {from === "BOT"
+            ? `Available: ${formatter.format(balance)} BOT`
+            : quote
+              ? `Available: ${formatter.format(Number(quote.availableBalance))} ${from}`
+              : `Your ${from} balance will be checked when you request a quote.`}
+        </p>
         <label htmlFor="swap-slippage" className="mt-4 block text-sm font-medium">Max slippage (%)</label>
         <input
           id="swap-slippage"

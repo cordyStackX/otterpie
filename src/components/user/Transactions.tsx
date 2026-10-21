@@ -134,27 +134,27 @@ export default function Transactions({ email, network } : TransactionProps) {
           date: record.date,
         })).sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
 
-        // A BDEX router call and its PIE ERC-20 transfer share a transaction
-        // hash. Collapse those legs into one activity row for either direction.
+        // A BDEX router call and its PIE or USDT ERC-20 transfer share a
+        // transaction hash. Collapse those legs into one activity row.
         const swapCandidates = mappedRecords.filter((record) => record.sourceType === "swap_candidate");
         const pairedHashes = new Set<string>();
         const swaps: Transaction[] = [];
         for (const candidate of swapCandidates) {
-          const pieLeg = mappedRecords.find((record) =>
-            record.hash === candidate.hash && record.asset === "PIE" && record.sourceType !== "swap_candidate"
+          const tokenLeg = mappedRecords.find((record) =>
+            record.hash === candidate.hash && record.asset !== "BOT" && record.sourceType !== "swap_candidate"
           );
-          if (!pieLeg) continue;
+          if (!tokenLeg) continue;
 
-          const pieReceived = pieLeg.type === "Receive";
-          const input = pieReceived ? candidate : pieLeg;
-          const output = pieReceived ? pieLeg : candidate;
+          const tokenReceived = tokenLeg.type === "Receive";
+          const input = tokenReceived ? candidate : tokenLeg;
+          const output = tokenReceived ? tokenLeg : candidate;
           pairedHashes.add(candidate.hash);
           swaps.push({
             id: `swap-${candidate.hash}`,
             name: `${input.asset} → ${output.asset}`,
             address: candidate.address,
             type: "Swap",
-            status: candidate.status === "Completed" && pieLeg.status === "Completed" ? "Completed" : "Failed",
+            status: candidate.status === "Completed" && tokenLeg.status === "Completed" ? "Completed" : "Failed",
             amount: output.amount,
             asset: output.asset,
             date: candidate.date,

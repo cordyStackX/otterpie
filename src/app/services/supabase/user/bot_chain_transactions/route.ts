@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic"; // always read fresh transactions
 const EXPLORER_API_URL =
   process.env.BOT_CHAIN_EXPLORER_API_URL || "https://scan.botchain.ai/api";
 const BDEX_V2_ROUTER = "0x1414ed29fdfd322c3c0a830330ed982e2d629e76";
+const BOT_CHAIN_USDT_TOKEN_ADDRESS = "0xaBabc7Ddc03e501d190C676BF3d92ef0e6e87a3C";
 
 const EXPLORER_PAGE_SIZE = 50;
 const MAX_EXPLORER_PAGES = 5; // cap work per request while searching for 10 transfers
@@ -99,15 +100,16 @@ export async function POST(params: NextRequest) {
     return NextResponse.json({ success: false, error: "Server misconfigured" }, { status: 500 });
   }
 
-  if (asset === "PIE" && isBotChainNetwork(data.network)) {
+  if ((asset === "PIE" || asset === "USDT") && isBotChainNetwork(data.network)) {
     try {
+      const tokenAddress = asset === "PIE" ? BOT_CHAIN_PIE_TOKEN_ADDRESS : BOT_CHAIN_USDT_TOKEN_ADDRESS;
       const explorerOrigin = new URL(EXPLORER_API_URL).origin;
       const url = new URL(
         `/api/v2/addresses/${address}/token-transfers`,
         explorerOrigin,
       );
       url.searchParams.set("type", "ERC-20");
-      url.searchParams.set("token", BOT_CHAIN_PIE_TOKEN_ADDRESS);
+      url.searchParams.set("token", tokenAddress);
       for (const [key, value] of Object.entries(decodePageCursor(cursor) ?? {})) {
         url.searchParams.set(key, value);
       }
@@ -116,8 +118,8 @@ export async function POST(params: NextRequest) {
         cache: "no-store",
         signal: AbortSignal.timeout(10_000),
       });
-      // A fresh wallet may not be indexed yet. Keep the history PIE-only and
-      // show it as empty until the wallet has a PIE transfer.
+      // A fresh wallet may not be indexed yet. Show an empty token history
+      // until the explorer indexes its first transfer.
       if (response.status !== 404 && !response.ok) {
         console.error("BOT Chain token-transfer API returned", response.status);
         return NextResponse.json({ success: false, error: "Could not reach BOT Chain" }, { status: 502 });
@@ -131,13 +133,13 @@ export async function POST(params: NextRequest) {
           };
       if (body && !Array.isArray(body.items)) {
         console.error("Unexpected BOT Chain token-transfer response");
-        return NextResponse.json({ success: false, error: "Could not read PIE transfers" }, { status: 502 });
+        return NextResponse.json({ success: false, error: `Could not read ${asset} transfers` }, { status: 502 });
       }
 
       const me = address.toLowerCase();
       const transactions: Incoming[] = (body?.items ?? [])
         .filter((transfer) =>
-          (transfer.token?.address_hash ?? transfer.token?.address)?.toLowerCase() === BOT_CHAIN_PIE_TOKEN_ADDRESS.toLowerCase()
+          (transfer.token?.address_hash ?? transfer.token?.address)?.toLowerCase() === tokenAddress.toLowerCase()
         )
         .map((transfer) => {
           const from = transfer.from?.hash ?? null;
@@ -150,7 +152,7 @@ export async function POST(params: NextRequest) {
             hash: transfer.transaction_hash,
             date: date.toISOString(),
             amount: formatUnits(BigInt(transfer.total.value), decimals),
-            asset: "PIE",
+            asset,
             from,
             to,
             direction: received ? "received" : "sent",
@@ -166,7 +168,7 @@ export async function POST(params: NextRequest) {
         success: true,
         funded: transactions.length > 0,
         address,
-        asset: "PIE",
+        asset,
         transactions,
         nextCursor,
         hasMore: nextCursor !== null,

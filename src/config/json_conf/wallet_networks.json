@@ -13,10 +13,11 @@
       "label": "BOT Chain Mainnet"
     },
     "nativeAsset": "BOT",
-    "transactionAssets": ["BOT", "PIE"],
+    "transactionAssets": ["BOT", "PIE", "USDT"],
     "assetLabels": {
       "BOT": "BOT · BOT Chain",
-      "PIE": "PIE · Otterpie"
+      "PIE": "PIE · Otterpie",
+      "USDT": "USDT · Tether"
     },
     "routes": {
       "balance": "/services/supabase/user/bot_chain_balance",

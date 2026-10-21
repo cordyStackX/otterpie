@@ -19,6 +19,7 @@ export const dynamic = "force-dynamic";
 const CHAIN_ID = 677;
 const ROUTER_ADDRESS = "0x1414eD29FdFD322c3c0a830330ed982E2D629e76";
 const WBOT_ADDRESS = "0xD5452816194a3784dBa983426cCe7c122F4abd30";
+const USDT_ADDRESS = "0xaBabc7Ddc03e501d190C676BF3d92ef0e6e87a3C";
 const PIE_BOT_PAIR_ADDRESS = "0xa7a7796b5ec5ea2fdec1f94a3e71fa027f7cf45b";
 const provider = new JsonRpcProvider(
 	process.env.BOT_CHAIN_RPC_URL || "https://rpc.botchain.ai",
@@ -43,18 +44,22 @@ const pairAbi = [
 	"function getReserves() view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)",
 ];
 
-type SwapDirection = "PIE_TO_BOT" | "BOT_TO_PIE";
+type SwapDirection = "PIE_TO_BOT" | "BOT_TO_PIE" | "BOT_TO_USDT" | "USDT_TO_BOT";
 
 function getSwapPath(direction: SwapDirection): string[] {
-	return direction === "PIE_TO_BOT"
-		? [BOT_CHAIN_PIE_TOKEN_ADDRESS, WBOT_ADDRESS]
-		: [WBOT_ADDRESS, BOT_CHAIN_PIE_TOKEN_ADDRESS];
+	switch (direction) {
+		case "PIE_TO_BOT": return [BOT_CHAIN_PIE_TOKEN_ADDRESS, WBOT_ADDRESS];
+		case "BOT_TO_PIE": return [WBOT_ADDRESS, BOT_CHAIN_PIE_TOKEN_ADDRESS];
+		case "BOT_TO_USDT": return [WBOT_ADDRESS, USDT_ADDRESS];
+		case "USDT_TO_BOT": return [USDT_ADDRESS, WBOT_ADDRESS];
+	}
 }
 
 function parseSwapRequest(value: unknown): { direction: SwapDirection; amount: string; slippage: number } | null {
 	if (!value || typeof value !== "object") return null;
 	const body = value as Record<string, unknown>;
-	if (body.direction !== "PIE_TO_BOT" && body.direction !== "BOT_TO_PIE") return null;
+	if (body.direction !== "PIE_TO_BOT" && body.direction !== "BOT_TO_PIE" &&
+		body.direction !== "BOT_TO_USDT" && body.direction !== "USDT_TO_BOT") return null;
 	if (typeof body.amount !== "string" || !/^\d+(?:\.\d{1,18})?$/.test(body.amount.trim())) return null;
 	const slippage = typeof body.slippage === "number" ? body.slippage : 1;
 	if (!Number.isFinite(slippage) || slippage < 0.1 || slippage > 5) return null;
@@ -62,21 +67,33 @@ function parseSwapRequest(value: unknown): { direction: SwapDirection; amount: s
 }
 
 async function getAmounts(direction: SwapDirection, amountText: string) {
-	const pie = new Contract(BOT_CHAIN_PIE_TOKEN_ADDRESS, tokenAbi, provider);
-	const decimals = Number(await pie.getFunction("decimals").staticCall());
-	if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36) throw new Error("PIE token decimals are invalid.");
-	const amountIn = direction === "PIE_TO_BOT" ? parseUnits(amountText, decimals) : parseEther(amountText);
+	const inputTokenAddress = direction === "PIE_TO_BOT"
+		? BOT_CHAIN_PIE_TOKEN_ADDRESS
+		: direction === "USDT_TO_BOT" ? USDT_ADDRESS : null;
+	const outputTokenAddress = direction === "BOT_TO_PIE"
+		? BOT_CHAIN_PIE_TOKEN_ADDRESS
+		: direction === "BOT_TO_USDT" ? USDT_ADDRESS : null;
+	const inputDecimals = inputTokenAddress
+		? Number(await new Contract(inputTokenAddress, tokenAbi, provider).getFunction("decimals").staticCall())
+		: 18;
+	const outputDecimals = outputTokenAddress
+		? Number(await new Contract(outputTokenAddress, tokenAbi, provider).getFunction("decimals").staticCall())
+		: 18;
+	if (!Number.isInteger(inputDecimals) || inputDecimals < 0 || inputDecimals > 36) throw new Error("Input token decimals are invalid.");
+	if (!Number.isInteger(outputDecimals) || outputDecimals < 0 || outputDecimals > 36) throw new Error("Output token decimals are invalid.");
+	const amountIn = inputTokenAddress ? parseUnits(amountText, inputDecimals) : parseEther(amountText);
 	if (amountIn <= BigInt(0)) throw new Error("Enter an amount greater than zero.");
 	const router = new Contract(ROUTER_ADDRESS, routerAbi, provider);
 	const amounts = await router.getFunction("getAmountsOut").staticCall(amountIn, getSwapPath(direction)) as bigint[];
 	if (amounts.length < 2 || amounts[amounts.length - 1] <= BigInt(0)) {
-		throw new Error("The PIE/BOT pool has no usable quote for this amount.");
+		throw new Error("The selected swap pool has no usable quote for this amount.");
 	}
 	return {
 		amountIn,
 		amountOut: amounts[amounts.length - 1],
-		inputDecimals: direction === "PIE_TO_BOT" ? decimals : 18,
-		outputDecimals: direction === "PIE_TO_BOT" ? 18 : decimals,
+		inputDecimals,
+		outputDecimals,
+		inputTokenAddress,
 	};
 }
 
@@ -169,12 +186,20 @@ export async function POST(request: NextRequest) {
 	try {
 		const quote = await getAmounts(swap.direction, swap.amount);
 		if (body.action === "quote") {
+			const availableBalance = quote.inputTokenAddress
+				? BigInt(await new Contract(quote.inputTokenAddress, tokenAbi, provider).getFunction("balanceOf").staticCall(walletRecord.wallet_address))
+				: await provider.getBalance(walletRecord.wallet_address);
+			if (quote.amountIn > availableBalance) {
+				const symbol = swap.direction === "PIE_TO_BOT" ? "PIE" : swap.direction === "USDT_TO_BOT" ? "USDT" : "BOT";
+				return NextResponse.json({ success: false, error: `Insufficient ${symbol} balance.` }, { status: 400 });
+			}
 			return NextResponse.json({
 				success: true,
 				quote: {
 					amountIn: swap.amount,
 					amountOut: formatUnits(quote.amountOut, quote.outputDecimals),
 					minimumReceived: formatUnits(quote.amountOut * BigInt(Math.floor((100 - swap.slippage) * 100)) / BigInt(10_000), quote.outputDecimals),
+					availableBalance: formatUnits(availableBalance, quote.inputDecimals),
 					slippage: swap.slippage,
 				},
 			});
@@ -209,7 +234,6 @@ export async function POST(request: NextRequest) {
 			return NextResponse.json({ success: false, error: "BOT Chain RPC is connected to the wrong network." }, { status: 503 });
 		}
 
-		const pie = new Contract(BOT_CHAIN_PIE_TOKEN_ADDRESS, tokenAbi, signer);
 		const router = new Contract(ROUTER_ADDRESS, routerAbi, signer);
 		const feeData = await provider.getFeeData();
 		const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice;
@@ -222,12 +246,16 @@ export async function POST(request: NextRequest) {
 		let approvalHash: string | undefined;
 		const nativeBalance = await provider.getBalance(signer.address);
 
-		if (swap.direction === "PIE_TO_BOT") {
-			const pieBalance = BigInt(await pie.getFunction("balanceOf").staticCall(signer.address));
-			if (quote.amountIn > pieBalance) return NextResponse.json({ success: false, error: "Insufficient PIE balance." }, { status: 400 });
-			const allowance = BigInt(await pie.getFunction("allowance").staticCall(signer.address, ROUTER_ADDRESS));
+		if (quote.inputTokenAddress) {
+			const inputToken = new Contract(quote.inputTokenAddress, tokenAbi, signer);
+			const tokenBalance = BigInt(await inputToken.getFunction("balanceOf").staticCall(signer.address));
+			if (quote.amountIn > tokenBalance) {
+				const symbol = swap.direction === "PIE_TO_BOT" ? "PIE" : "USDT";
+				return NextResponse.json({ success: false, error: `Insufficient ${symbol} balance.` }, { status: 400 });
+			}
+			const allowance = BigInt(await inputToken.getFunction("allowance").staticCall(signer.address, ROUTER_ADDRESS));
 			if (allowance < quote.amountIn) {
-				const approve = pie.getFunction("approve");
+				const approve = inputToken.getFunction("approve");
 				const approvalGas = await approve.estimateGas(ROUTER_ADDRESS, quote.amountIn);
 				const approval = await approve.send(ROUTER_ADDRESS, quote.amountIn, { gasLimit: approvalGas, ...feeOptions });
 				approvalHash = approval.hash;
@@ -239,7 +267,7 @@ export async function POST(request: NextRequest) {
 
 		const path = getSwapPath(swap.direction);
 		let tx;
-		if (swap.direction === "BOT_TO_PIE") {
+		if (swap.direction === "BOT_TO_PIE" || swap.direction === "BOT_TO_USDT") {
 			const method = router.getFunction("swapExactETHForTokens");
 			const gasLimit = await method.estimateGas(minimumOut, path, signer.address, deadline, { value: quote.amountIn });
 			if (quote.amountIn + gasLimit * gasPrice > nativeBalance) {

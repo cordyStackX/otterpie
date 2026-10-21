@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { JsonRpcProvider, formatEther, formatUnits, isAddress } from "ethers"; // ethers v6
+import { Contract, JsonRpcProvider, formatEther, formatUnits, isAddress } from "ethers"; // ethers v6
 import { Security } from "@/firewall";
 import { BOT_CHAIN_PIE_TOKEN_ADDRESS, getBotChainPieBalance, supabaseServer } from "@/lib";
 
@@ -7,6 +7,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // always read a fresh balance
 
 const BOT_CHAIN_ID = 677;
+const USDT_ADDRESS = "0xaBabc7Ddc03e501d190C676BF3d92ef0e6e87a3C";
+const ERC20_ABI = ["function balanceOf(address account) view returns (uint256)", "function decimals() view returns (uint8)"];
 
 // Public BOT Chain mainnet RPC. Optionally override it in .env.local with
 // BOT_CHAIN_RPC_URL (server-only, no NEXT_PUBLIC_ prefix) if you get a private
@@ -58,6 +60,15 @@ async function getPieBalance(address: string): Promise<string> {
   }
 }
 
+async function getUsdtBalance(address: string): Promise<string> {
+  const usdt = new Contract(USDT_ADDRESS, ERC20_ABI, provider);
+  const [balance, decimals] = await Promise.all([
+    usdt.getFunction("balanceOf").staticCall(address) as Promise<bigint>,
+    usdt.getFunction("decimals").staticCall() as Promise<bigint>,
+  ]);
+  return formatUnits(balance, Number(decimals));
+}
+
 export async function POST(params: NextRequest) {
   const auth = await Security(params);
   if (auth?.error) {
@@ -96,6 +107,7 @@ export async function POST(params: NextRequest) {
     const balances = [
       { asset: "BOT", issuer: null, balance },
       { asset: "PIE", issuer: null, balance: await getPieBalance(address) },
+      { asset: "USDT", issuer: null, balance: await getUsdtBalance(address) },
     ];
 
     // Same shape as the Stellar route so the dashboard can treat both alike
