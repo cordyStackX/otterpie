@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic"; // always read fresh transactions
 // Override the base in .env.local with BOT_CHAIN_EXPLORER_API_URL if needed.
 const EXPLORER_API_URL =
   process.env.BOT_CHAIN_EXPLORER_API_URL || "https://scan.botchain.ai/api";
+const BDEX_V2_ROUTER = "0x1414ed29fdfd322c3c0a830330ed982e2d629e76";
 
 const EXPLORER_PAGE_SIZE = 50;
 const MAX_EXPLORER_PAGES = 5; // cap work per request while searching for 10 transfers
@@ -20,6 +21,7 @@ const TRANSACTION_PAGE_SIZE = 10;
 
 type Incoming = {
   id: string;
+  hash?: string;
   date: string; // ISO timestamp
   amount: string;
   asset: string;
@@ -145,6 +147,7 @@ export async function POST(params: NextRequest) {
           const date = new Date(transfer.timestamp);
           return {
             id: `${transfer.transaction_hash}-${transfer.log_index}`,
+            hash: transfer.transaction_hash,
             date: date.toISOString(),
             amount: formatUnits(BigInt(transfer.total.value), decimals),
             asset: "PIE",
@@ -229,17 +232,21 @@ export async function POST(params: NextRequest) {
         const sent = t.from?.toLowerCase() === me;
         const succeeded = t.isError === undefined || t.isError === "0";
         const hasValue = t.value !== "0" && t.value !== "";
+        const isBDEXRouterCall = sent && t.to?.toLowerCase() === BDEX_V2_ROUTER;
 
-        if ((received || sent) && hasValue) {
+        if ((received || sent) && (hasValue || isBDEXRouterCall)) {
           transactions.push({
             id: t.hash,
+            hash: t.hash,
             date: date.toISOString(),
             amount: formatEther(BigInt(t.value)),
             asset: "BOT",
             from: t.from ?? null,
             to: t.to ?? null,
             direction: received ? "received" : "sent",
-            type: "transfer",
+            // The UI pairs this router call with a PIE transfer sharing its hash.
+            // It only becomes a Swap row when both legs are present.
+            type: isBDEXRouterCall ? "swap_candidate" : "transfer",
             status: succeeded ? "Completed" : "Failed",
           });
         }

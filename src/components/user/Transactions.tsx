@@ -104,7 +104,7 @@ export default function Transactions({ email, network } : TransactionProps) {
         }
 
         const records = responses.flatMap((response) => response.data?.transactions ?? []);
-        const mapped: Transaction[] = records.map((record: {
+        const mappedRecords: (Transaction & { sourceType?: string })[] = records.map((record: {
           id: string;
           hash?: string;
           type?: string;
@@ -121,6 +121,8 @@ export default function Transactions({ email, network } : TransactionProps) {
           status: Transaction["status"];
         }) => ({
           id: record.id,
+          hash: record.hash ?? record.id,
+          sourceType: record.type,
           name: record.type === "swap"
             ? `${record.assetIn ?? record.asset} → ${record.assetOut ?? "token"}`
             : shortAddress((record.direction === "received" ? record.from : record.to) ?? "Wallet transfer"),
@@ -134,8 +136,47 @@ export default function Transactions({ email, network } : TransactionProps) {
           amountOut: record.amountOut === undefined ? undefined : Number(record.amountOut),
           assetOut: record.assetOut,
           date: record.date,
-          hash: record.hash ?? record.id,
         })).sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+
+        // A BDEX router call and its PIE ERC-20 transfer share a transaction
+        // hash. Collapse those legs into one activity row for either direction.
+        const swapCandidates = mappedRecords.filter((record) => record.sourceType === "swap_candidate");
+        const pairedHashes = new Set<string>();
+        const swaps: Transaction[] = [];
+        for (const candidate of swapCandidates) {
+          const pieLeg = mappedRecords.find((record) =>
+            record.hash === candidate.hash && record.asset === "PIE" && record.sourceType !== "swap_candidate"
+          );
+          if (!pieLeg) continue;
+
+          const pieReceived = pieLeg.type === "Receive";
+          const input = pieReceived ? candidate : pieLeg;
+          const output = pieReceived ? pieLeg : candidate;
+          pairedHashes.add(candidate.hash);
+          swaps.push({
+            id: `swap-${candidate.hash}`,
+            name: `${input.asset} → ${output.asset}`,
+            address: candidate.address,
+            type: "Swap",
+            status: candidate.status === "Completed" && pieLeg.status === "Completed" ? "Completed" : "Failed",
+            amount: output.amount,
+            asset: output.asset,
+            date: candidate.date,
+            hash: candidate.hash,
+            amountIn: input.amount,
+            assetIn: input.asset,
+            // For PIE → BOT, the explorer's normal tx list omits the native
+            // BOT output (it is an internal value transfer), so do not invent it.
+            amountOut: output.sourceType === "swap_candidate" && output.amount === 0 ? undefined : output.amount,
+            assetOut: output.asset,
+          });
+        }
+        const mapped: Transaction[] = [
+          ...mappedRecords.filter((record) =>
+            record.sourceType !== "swap_candidate" && !pairedHashes.has(record.hash)
+          ),
+          ...swaps,
+        ].sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
 
         const updatedCursors = emptyCursors();
         responses.forEach((response, index) => {
@@ -490,11 +531,13 @@ function DirectionIcon({ type }: { type: Transaction["type"] }) {
 }
 
 function TransactionAmount({ transaction }: { transaction: Transaction }) {
-  if (transaction.type === "Swap" && transaction.amountIn !== undefined && transaction.amountOut !== undefined) {
+  if (transaction.type === "Swap" && transaction.amountIn !== undefined) {
     return (
       <span className="inline-flex flex-col items-end gap-0.5">
         <span className="text-foreground/65">−{formatAmount(transaction.amountIn)} {transaction.assetIn}</span>
-        <span className="text-emerald-600">+{formatAmount(transaction.amountOut)} {transaction.assetOut}</span>
+        {transaction.amountOut !== undefined
+          ? <span className="text-emerald-600">+{formatAmount(transaction.amountOut)} {transaction.assetOut}</span>
+          : <span className="text-secondary">Swap → {transaction.assetOut}</span>}
       </span>
     );
   }
