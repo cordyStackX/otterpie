@@ -16,6 +16,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Fetch_to } from "@/utilities";
+import { isBotChainNetwork } from "@/utilities/network";
 import routes from "@/routes/user.json";
 import withdrawRoutes from "@/routes/withdraw.json";
 
@@ -40,16 +41,9 @@ function colorForIndex(i: number) {
   return `rgba(${base}, ${alpha})`;
 }
 
-// Wallet amounts are formatted by the active network's ticker.
-const NETWORK_SYMBOL: Record<string, string> = {
-  stellar: "XLM",
-  bot_chain: "BOT", // TODO: put the real ticker here
-};
-
 type FormatAmount = (value: number) => string;
 
-const makeFormatter = (network: string): FormatAmount => {
-  const symbol = NETWORK_SYMBOL[network] ?? "";
+const makeFormatter = (symbol: string): FormatAmount => {
   const nf = new Intl.NumberFormat("en-US", { maximumFractionDigits: 7 });
   return (value: number) => `${nf.format(value)} ${symbol}`.trim();
 };
@@ -206,6 +200,7 @@ function shortAddress(address: string) {
 // Uses the native <dialog> element for focus trapping, Escape-to-close and a backdrop.
 function WithdrawDialog({
   category,
+  asset,
   network,
   email,
   withdrawAll = false,
@@ -214,6 +209,7 @@ function WithdrawDialog({
   onWithdrawn,
 }: {
   category: Category;
+  asset: string;
   network: string;
   email: string;
   withdrawAll?: boolean;
@@ -252,7 +248,7 @@ function WithdrawDialog({
     setStatus("submitting");
     const endpoint = network === "stellar"
       ? withdrawRoutes.withdraw_stellar
-      : network === "bot_chain"
+      : isBotChainNetwork(network)
         ? withdrawRoutes.withdraw_botchain
         : null;
     if (!endpoint) {
@@ -265,6 +261,7 @@ function WithdrawDialog({
         address: trimmed,
         amount: amount.trim(),
         withdrawAll,
+        asset,
         password,
         email,
       });
@@ -341,7 +338,7 @@ function WithdrawDialog({
           <form onSubmit={handleSubmit} noValidate>
             <div className="flex items-start justify-between gap-4">
               <h2 id="withdraw-title" className="text-lg font-semibold tracking-tight">
-                {withdrawAll ? "Withdraw all wallet funds" : `Withdraw from ${category.name}`}
+                {withdrawAll ? `Transfer all ${asset}` : `Transfer ${asset} from ${category.name}`}
               </h2>
               <button
                 type="button"
@@ -368,7 +365,7 @@ function WithdrawDialog({
             </div>
 
             <div className="mt-4 rounded-lg bg-foreground/5 px-4 py-3">
-              <p className="text-xs text-foreground/55">Available to withdraw</p>
+              <p className="text-xs text-foreground/55">{asset === "PIE" ? "Available to transfer" : "Available to withdraw"}</p>
               <p className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight">
                 {formatAmount(balance)}
               </p>
@@ -376,22 +373,23 @@ function WithdrawDialog({
 
             {withdrawAll && (
               <p className="mt-2 text-xs text-foreground/50">
-                The network will calculate the maximum sendable amount after reserving fees
-                {network === "stellar" ? " and Stellar's minimum account balance" : ""}.
+                {asset === "PIE"
+                  ? "All PIE will be sent. BOT in this wallet pays the network fee."
+                  : `The network will calculate the maximum sendable amount after reserving fees${network === "stellar" ? " and Stellar's minimum account balance" : ""}.`}
               </p>
             )}
 
             {!withdrawAll && (
               <>
                 <label htmlFor="withdraw-amount" className="mt-5 block text-sm font-medium text-foreground">
-                  Amount ({network === "stellar" ? "XLM" : "BOT"})
+                  Amount ({asset})
                 </label>
                 <input
                   id="withdraw-amount"
                   type="number"
                   min="0"
                   max={balance}
-                  step={network === "stellar" ? "0.0000001" : "any"}
+                  step={asset === "XLM" ? "0.0000001" : "any"}
                   value={amount}
                   onChange={(e) => {
                     setAmount(e.target.value);
@@ -409,6 +407,9 @@ function WithdrawDialog({
             >
               Wallet address
             </label>
+            {asset === "PIE" && (
+              <p className="mt-2 text-xs text-foreground/50">BOT pays the network fee for this PIE transfer.</p>
+            )}
             <input
               id="wallet-address"
               type="text"
@@ -471,7 +472,7 @@ function WithdrawDialog({
                 disabled={submitting || balance === 0}
                 className="flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-background outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50"
               >
-                {submitting ? "Withdrawing…" : "Withdraw"}
+                {submitting ? `Sending ${asset}…` : `Send ${asset}`}
               </button>
             </div>
           </form>
@@ -493,16 +494,20 @@ export default function Dashboard({ email, network }: DashboardProps) {
   const [withdrawn, setWithdrawn] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<Category | null>(null);
   const [incoming, setIncoming] = useState<Incoming[]>([]);
+  const [selectedAsset, setSelectedAsset] = useState<"BOT" | "PIE">("PIE");
+  const [swapDirection, setSwapDirection] = useState<{ from: "BOT" | "PIE"; to: "BOT" | "PIE" } | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // Wallet balance (pie chart), formatted by the active network's ticker
   const [walletData, setWalletData] = useState<Slice[]>([]);
   const [loadingBalance, setLoadingBalance] = useState(true);
   const [loadingTransfers, setLoadingTransfers] = useState(true);
-  const formatAmount = useMemo(() => makeFormatter(network), [network]);
+  const activeSymbol = network === "stellar" ? "XLM" : isBotChainNetwork(network) ? selectedAsset : "";
+  const formatAmount = useMemo(() => makeFormatter(activeSymbol), [activeSymbol]);
 
-  const nativeSymbol = NETWORK_SYMBOL[network];
-  const nativeBalance = walletData.find((slice) => slice.name === nativeSymbol)?.amount ?? 0;
+  const nativeBalance = walletData.find((slice) => slice.name === activeSymbol)?.amount ?? 0;
+  const isPieSelected = isBotChainNetwork(network) && activeSymbol === "PIE";
+  const formatTransferAmount = formatAmount;
   const isEmptyWallet = !loadingBalance && nativeBalance === 0;
 
   const categories = allocate(rules, nativeBalance, withdrawn);
@@ -596,11 +601,11 @@ export default function Dashboard({ email, network }: DashboardProps) {
             transactions: routes.stellar_transactions,
             symbol: "XLM",
           }
-        : network === "bot_chain"
+        : isBotChainNetwork(network)
           ? {
               balance: routes.bot_chain_balance,
               transactions: routes.bot_chain_transactions,
-              symbol: "BOT",
+              symbol: selectedAsset,
             }
           : null;
 
@@ -617,6 +622,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
       // null = that request failed, so keep whatever is already on screen
       let slices: Slice[] | null = null;
       let incomingTx: Incoming[] | null = null;
+      let loadedTransferSymbol = config?.symbol ?? "";
       const loadFullHistory = !historyComplete;
 
       if (config) {
@@ -629,8 +635,12 @@ export default function Dashboard({ email, network }: DashboardProps) {
 
         // Separate try so a transactions failure never wipes out the balance
         try {
-          let txResponse = await Fetch_to("POST", config.transactions, { email });
+          let txResponse = await Fetch_to("POST", config.transactions, {
+            email,
+            asset: activeSymbol,
+          });
           if (txResponse.success) {
+            if (typeof txResponse.data.asset === "string") loadedTransferSymbol = txResponse.data.asset;
             const txs = [...txResponse.data.transactions];
             let cursor: string | null = txResponse.data.nextCursor ?? null;
             let complete = true;
@@ -642,11 +652,12 @@ export default function Dashboard({ email, network }: DashboardProps) {
                 break;
               }
               seenCursors.add(cursor);
-              txResponse = await Fetch_to("POST", config.transactions, { email, cursor });
+              txResponse = await Fetch_to("POST", config.transactions, { email, cursor, asset: activeSymbol });
               if (!txResponse.success) {
                 complete = false;
                 break;
               }
+              if (typeof txResponse.data.asset === "string") loadedTransferSymbol = txResponse.data.asset;
               txs.push(...txResponse.data.transactions);
               cursor = txResponse.data.nextCursor ?? null;
               if (txResponse.data.hasMore && !cursor) {
@@ -655,7 +666,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
               }
             }
 
-            if (complete) incomingTx = toIncoming(txs, config.symbol);
+            if (complete) incomingTx = toIncoming(txs, loadedTransferSymbol);
           }
         } catch {
           // Keep the previous transfer history
@@ -701,7 +712,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [email, network]);
+  }, [email, network, selectedAsset]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -776,7 +787,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <p className="text-xs text-foreground/50">Native balance</p>
+                  <p className="text-xs text-foreground/50">{activeSymbol === "PIE" ? "PIE balance" : "Native balance"}</p>
                   <p className="max-w-[62%] break-words text-center text-sm font-semibold leading-tight tabular-nums tracking-tight text-foreground sm:text-base">
                     {formatAmount(nativeBalance)}
                   </p>
@@ -799,14 +810,53 @@ export default function Dashboard({ email, network }: DashboardProps) {
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => setSelected({ id: "__all__", name: "wallet", amount: nativeBalance })}
-            disabled={loadingBalance || nativeBalance <= 0 || !nativeSymbol}
-            className="mt-auto w-full shrink-0 rounded-md border border-primary/30 px-3 py-2 text-sm font-medium text-primary outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Withdraw all funds
-          </button>
+          <div className="mt-auto flex w-full shrink-0 flex-col gap-2">
+            {isBotChainNetwork(network) && (
+              <button
+                type="button"
+                onClick={() => setSelectedAsset(isPieSelected ? "BOT" : "PIE")}
+                aria-label={isPieSelected ? "Switch to BOT Chain" : "Switch to PIE"}
+                className="flex w-full items-center justify-center gap-1 rounded-md border border-yellow-400/50 bg-yellow-400/15 px-2 py-2 text-xs font-semibold text-yellow-300 outline-none transition-colors hover:bg-yellow-400/25 focus-visible:ring-2 focus-visible:ring-yellow-300/50"
+              >
+                <svg
+                  aria-hidden="true"
+                  className="h-5 w-5 shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="m7 4 4 4-4 4" />
+                  <path d="M11 8H3" />
+                  <path d="m17 20-4-4 4-4" />
+                  <path d="M13 16h8" />
+                </svg>
+                <span className="truncate">Switch to {isPieSelected ? "BOT Chain" : "PIE"}</span>
+              </button>
+            )}
+            <div className="flex w-full gap-2">
+              {!isPieSelected && (
+                <button
+                  type="button"
+                  onClick={() => setSelected({ id: "__all__", name: "wallet", amount: nativeBalance })}
+                  disabled={loadingBalance || nativeBalance <= 0 || !activeSymbol}
+                  className="min-w-0 flex-1 rounded-md border border-primary/30 px-2 py-2 text-xs font-medium text-primary outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
+                >
+                  Withdraw all BOT
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSwapDirection(isPieSelected ? { from: "PIE", to: "BOT" } : { from: "BOT", to: "PIE" })}
+                disabled={loadingBalance || nativeBalance <= 0}
+                className="min-w-0 flex-1 rounded-md border border-secondary/35 bg-secondary/10 px-2 py-2 text-xs font-medium text-secondary outline-none transition-colors hover:bg-secondary/20 focus-visible:ring-2 focus-visible:ring-secondary/40 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
+              >
+                Swap {isPieSelected ? "PIE to BOT" : "BOT to PIE"}
+              </button>
+            </div>
+          </div>
         </section>
 
         {/* Transfer history */}
@@ -817,7 +867,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 id="transfer-title" className="text-sm font-semibold text-foreground">
-                Transfer history
+            {isBotChainNetwork(network) ? `${activeSymbol} transfer history` : "Transfer history"}
               </h2>
               {loadingTransfers ? (
                 <div role="status" aria-label="Loading transfer history" className="mt-2 space-y-2">
@@ -828,10 +878,10 @@ export default function Dashboard({ email, network }: DashboardProps) {
               ) : (
                 <>
                   <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight text-foreground">
-                    {formatAmount(receivedTotal)}
+                    {formatTransferAmount(receivedTotal)}
                   </p>
                   <p className="mt-0.5 text-xs text-foreground/50">
-                    Received · last {activeRange.label} · avg {formatAmount(receivedAverage)} {activeRange.averageLabel}
+                    Received · last {activeRange.label} · avg {formatTransferAmount(receivedAverage)} {activeRange.averageLabel}
                   </p>
                 </>
               )}
@@ -881,7 +931,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
                 <Tooltip
                   cursor={{ fill: "rgba(var(--primary-rgba), 0.06)" }}
                   contentStyle={tooltipStyle}
-                  formatter={(value) => [formatAmount(Number(value ?? 0)), "Received"]}
+                  formatter={(value) => [formatTransferAmount(Number(value ?? 0)), "Received"]}
                 />
                 <Bar dataKey="amount" radius={[4, 4, 0, 0]} maxBarSize={36}>
                   {transferData.map((d, i) => (
@@ -956,8 +1006,8 @@ export default function Dashboard({ email, network }: DashboardProps) {
                     type="button"
                     onClick={() => setSelected({ id: c.id, name: c.name, amount: c.available })}
                     aria-haspopup="dialog"
-                    aria-label={`Withdraw from ${c.name}, balance ${formatAmount(c.available)}`}
-                    className="relative isolate block w-full overflow-hidden rounded-xl border border-foreground/10 border-l-4 bg-background px-4 py-3.5 text-left outline-none transition-colors hover:bg-foreground/[0.02] focus-visible:ring-2 focus-visible:ring-primary/40"
+                    aria-label={`${isPieSelected ? "Transfer" : "Withdraw"} from ${c.name}, balance ${formatAmount(c.available)}`}
+                    className="relative isolate block w-full overflow-hidden rounded-xl border border-foreground/10 border-l-4 bg-background px-4 py-3.5 text-left outline-none transition-colors hover:bg-foreground/[0.02] focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
                     style={{ borderLeftColor: c.color || colorForIndex(i) }}
                   >
                     {/* Otter mascot as a soft background on the right of the card */}
@@ -1044,6 +1094,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
         <WithdrawDialog
           key={selected.id}
           category={selected}
+          asset={activeSymbol}
           formatAmount={formatAmount}
           email={email}
           onClose={() => setSelected(null)}
@@ -1057,6 +1108,92 @@ export default function Dashboard({ email, network }: DashboardProps) {
           }
         />
       )}
+      {swapDirection && (
+        <SwapPreviewDialog
+          key={`${swapDirection.from}-${swapDirection.to}`}
+          from={swapDirection.from}
+          to={swapDirection.to}
+          balance={nativeBalance}
+          onClose={() => setSwapDirection(null)}
+        />
+      )}
     </div>
+  );
+}
+
+function SwapPreviewDialog({
+  from,
+  to,
+  balance,
+  onClose,
+}: {
+  from: "BOT" | "PIE";
+  to: "BOT" | "PIE";
+  balance: number;
+  onClose: () => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [amount, setAmount] = useState("");
+  const parsedAmount = Number(amount);
+  const output = Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : 0;
+  const formatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 7 });
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) dialog.showModal();
+  }, []);
+
+  return (
+    <dialog
+      ref={dialogRef}
+      aria-labelledby="swap-preview-title"
+      onClose={onClose}
+      onClick={(event) => {
+        if (event.target === dialogRef.current) dialogRef.current?.close();
+      }}
+      className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-foreground/10 bg-background p-0 text-foreground shadow-xl backdrop:bg-foreground/30 backdrop:backdrop-blur-[2px]"
+    >
+      <div className="p-6">
+        <div className="flex items-start justify-between gap-4">
+          <h2 id="swap-preview-title" className="text-lg font-semibold tracking-tight">Swap {from} to {to}</h2>
+          <button
+            type="button"
+            onClick={() => dialogRef.current?.close()}
+            aria-label="Close"
+            className="-mr-2 -mt-1 flex h-8 w-8 items-center justify-center rounded-md text-foreground/60 outline-none transition-colors hover:bg-foreground/5 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/40"
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+        <label htmlFor="swap-amount" className="mt-5 block text-sm font-medium">You pay ({from})</label>
+        <input
+          id="swap-amount"
+          type="number"
+          min="0"
+          max={balance}
+          step="any"
+          value={amount}
+          onChange={(event) => setAmount(event.target.value)}
+          placeholder="0"
+          className="mt-1.5 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/25"
+        />
+        <p className="mt-1 text-xs text-foreground/50">Available: {formatter.format(balance)} {from}</p>
+        <div className="mt-4 rounded-lg bg-foreground/5 px-4 py-3">
+          <p className="text-xs text-foreground/55">Estimated output ({to})</p>
+          <p className="mt-1 text-xl font-semibold tabular-nums">{formatter.format(output)} {to}</p>
+          <p className="mt-1 text-xs text-foreground/50">Demo rate: 1 {from} = 1 {to}</p>
+        </div>
+        <p className="mt-4 rounded-md border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-xs text-yellow-200">
+          Demo preview only. This does not send tokens or represent a market price.
+        </p>
+        <button
+          type="button"
+          onClick={() => dialogRef.current?.close()}
+          className="mt-5 w-full rounded-md border border-foreground/15 px-4 py-2.5 text-sm font-medium text-foreground/80 outline-none transition-colors hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-primary/40"
+        >
+          Close preview
+        </button>
+      </div>
+    </dialog>
   );
 }

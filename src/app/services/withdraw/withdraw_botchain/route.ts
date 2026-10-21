@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { JsonRpcProvider, Wallet, formatEther, isAddress, parseEther } from "ethers";
+import { Contract, JsonRpcProvider, Wallet, formatEther, formatUnits, isAddress, parseEther, parseUnits } from "ethers";
 import bcrypt from "bcrypt";
 import { decryptText, rateLimit, Security } from "@/firewall";
-import { supabaseServer } from "@/lib";
+import { BOT_CHAIN_PIE_TOKEN_ADDRESS, supabaseServer } from "@/lib";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,6 +13,11 @@ const provider = new JsonRpcProvider(
   CHAIN_ID,
   { staticNetwork: true }
 );
+const pieAbi = [
+  "function balanceOf(address account) view returns (uint256)",
+  "function decimals() view returns (uint8)",
+  "function transfer(address to, uint256 amount) returns (bool)",
+];
 
 export async function POST(request: NextRequest) {
   const auth = await Security(request);
@@ -29,7 +34,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: { email: string; address?: unknown; amount?: unknown; withdrawAll?: unknown; password?: unknown };
+  let body: { email: string; address?: unknown; amount?: unknown; withdrawAll?: unknown; password?: unknown; asset?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -39,6 +44,7 @@ export async function POST(request: NextRequest) {
   const address = typeof body.address === "string" ? body.address.trim() : "";
   const amountText = typeof body.amount === "string" ? body.amount.trim() : "";
   const withdrawAll = body.withdrawAll === true;
+  const asset = body.asset === undefined ? "BOT" : body.asset;
   const password = typeof body.password === "string" ? body.password : "";
   if (!password) {
     return NextResponse.json({ success: false, error: "Confirm this transfer with your account password." }, { status: 400 });
@@ -46,8 +52,11 @@ export async function POST(request: NextRequest) {
   if (!isAddress(address)) {
     return NextResponse.json({ success: false, error: "Enter a valid EVM wallet address." }, { status: 400 });
   }
+  if (asset !== "BOT" && asset !== "PIE") {
+    return NextResponse.json({ success: false, error: "Choose BOT or PIE to transfer." }, { status: 400 });
+  }
   if (!withdrawAll && !/^\d+(?:\.\d{1,18})?$/.test(amountText)) {
-    return NextResponse.json({ success: false, error: "Enter a valid BOT amount with up to 18 decimal places." }, { status: 400 });
+    return NextResponse.json({ success: false, error: `Enter a valid ${asset} amount with up to 18 decimal places.` }, { status: 400 });
   }
   const { data: account, error: accountError } = await supabaseServer
     .from("tbl_auth")
@@ -65,7 +74,7 @@ export async function POST(request: NextRequest) {
     .from("tbl_wallet")
     .select("wallet_address, secret_key, network")
     .eq("email", body.email)
-    .eq("network", "bot_chain")
+    .in("network", ["bot_chain", "otterpie_bot_chain"])
     .maybeSingle();
 
   if (walletError) {
@@ -105,6 +114,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "BOT Chain RPC is connected to the wrong network." }, { status: 503 });
     }
 
+    if (asset === "PIE") {
+      const token = new Contract(BOT_CHAIN_PIE_TOKEN_ADDRESS, pieAbi, signer);
+      const decimals = Number(await token.getFunction("decimals").staticCall());
+      const tokenBalance = BigInt(await token.getFunction("balanceOf").staticCall(signer.address));
+      const enteredDecimals = amountText.split(".")[1]?.length ?? 0;
+      if (!withdrawAll && enteredDecimals > decimals) {
+        return NextResponse.json({ success: false, error: `PIE supports up to ${decimals} decimal places.` }, { status: 400 });
+      }
+      const amount = withdrawAll ? tokenBalance : parseUnits(amountText, decimals);
+      if (amount <= BigInt(0)) {
+        return NextResponse.json({ success: false, error: "Your wallet has no PIE to transfer." }, { status: 400 });
+      }
+      if (amount > tokenBalance) {
+        return NextResponse.json({ success: false, error: "Insufficient PIE balance." }, { status: 400 });
+      }
+
+      const transfer = token.getFunction("transfer");
+      const transferWillSucceed = await transfer.staticCall(address, amount);
+      if (!transferWillSucceed) {
+        return NextResponse.json({ success: false, error: "The PIE token rejected this transfer." }, { status: 400 });
+      }
+      const gasLimit = await transfer.estimateGas(address, amount);
+      const feeReserve = gasLimit * gasPrice;
+      if (balance <= feeReserve) {
+        return NextResponse.json({ success: false, error: "Your BOT balance is not enough to cover the PIE transfer fee." }, { status: 400 });
+      }
+      const feeOptions = feeData.maxFeePerGas
+        ? {
+            maxFeePerGas: feeData.maxFeePerGas,
+            maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? feeData.maxFeePerGas,
+          }
+        : { gasPrice };
+      const sent = await transfer.send(address, amount, { gasLimit, ...feeOptions });
+      return NextResponse.json({
+        success: true,
+        txHash: sent.hash,
+        amount: formatUnits(amount, decimals),
+        message: "PIE transfer submitted.",
+      });
+    }
+
     const gasLimit = await provider.estimateGas({
       to: address,
       value: withdrawAll ? BigInt(0) : requestedAmount,
@@ -134,6 +184,6 @@ export async function POST(request: NextRequest) {
     if (message.includes("insufficient funds")) {
       return NextResponse.json({ success: false, error: "Insufficient BOT balance to cover the amount and network fee." }, { status: 400 });
     }
-    return NextResponse.json({ success: false, error: "Could not submit the BOT transfer. Check the address, amount, and wallet balance." }, { status: 502 });
+    return NextResponse.json({ success: false, error: `Could not submit the ${asset} transfer. Check the address, amount, and wallet balances.` }, { status: 502 });
   }
 }

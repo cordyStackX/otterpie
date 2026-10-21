@@ -153,9 +153,9 @@ export default function SignupForm() {
             value={network}
             onChange={(e) => setNetwork(e.target.value)}
             options={[
-              { value: " ", label: "Select Networks" },
-              { value: "stellar", label: "Stellar" },
-              { value: "bot_chain", label: "Bot Chain" },
+              { value: "", label: "Select Networks" },
+              { value: "bot_chain", label: "BOT Chain Mainnet" },
+              { value: "stellar", label: "Stellar Mainnet" }
             ]}
           />
 

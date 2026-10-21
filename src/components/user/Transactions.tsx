@@ -2,18 +2,23 @@
 
 import { useState, useEffect } from "react";
 import { Fetch_to } from "@/utilities";
+import { isBotChainNetwork, walletNetworkLabel } from "@/utilities/network";
 import routes from "@/routes/user.json";
 
 type Transaction = {
   id: string;
   name: string;
   address: string;
-  type: "Receive" | "Withdraw";
+  type: "Receive" | "Withdraw" | "Swap";
   status: "Completed" | "Pending" | "Failed";
   amount: number;
   asset: string;
   date: string;
   hash: string;
+  amountIn?: number;
+  assetIn?: string;
+  amountOut?: number;
+  assetOut?: string;
 };
 
 type TransactionProps = {
@@ -21,8 +26,8 @@ type TransactionProps = {
   network: string;
 }
 
-type Filter = "All" | "Withdraw" | "Receive";
-const filters: Filter[] = ["All", "Withdraw", "Receive"];
+type Filter = "All" | "Withdraw" | "Receive" | "Swap";
+const filters: Filter[] = ["All", "Withdraw", "Receive", "Swap"];
 const skeletonClass = "animate-pulse motion-reduce:animate-none rounded-md bg-foreground/10";
 
 const cardClass = "rounded-xl border border-foreground/10 bg-background";
@@ -33,7 +38,7 @@ const shortAddress = (address: string) =>
 const explorerUrl = (network: string, hash: string) => {
   const encodedHash = encodeURIComponent(hash);
   if (network === "stellar") return `https://stellar.expert/explorer/public/tx/${encodedHash}`;
-  if (network === "bot_chain") return `https://scan.botchain.ai/tx/${encodedHash}`;
+  if (isBotChainNetwork(network)) return `https://scan.botchain.ai/tx/${encodedHash}`;
   return null;
 };
 
@@ -70,7 +75,7 @@ export default function Transactions({ email, network } : TransactionProps) {
 
       const route = network === "stellar"
         ? routes.stellar_transactions
-        : network === "bot_chain"
+        : isBotChainNetwork(network)
           ? routes.bot_chain_transactions
           : null;
 
@@ -96,21 +101,32 @@ export default function Transactions({ email, network } : TransactionProps) {
         const mapped: Transaction[] = records.map((record: {
           id: string;
           hash?: string;
+          type?: string;
           date: string;
           amount: string;
           asset: string;
+          amountIn?: string;
+          assetIn?: string;
+          amountOut?: string;
+          assetOut?: string;
           from: string | null;
           to: string | null;
           direction: "received" | "sent";
           status: Transaction["status"];
         }) => ({
           id: record.id,
-          name: shortAddress((record.direction === "received" ? record.from : record.to) ?? "Wallet transfer"),
+          name: record.type === "swap"
+            ? `${record.assetIn ?? record.asset} → ${record.assetOut ?? "token"}`
+            : shortAddress((record.direction === "received" ? record.from : record.to) ?? "Wallet transfer"),
           address: (record.direction === "received" ? record.from : record.to) ?? "Unknown wallet",
-          type: record.direction === "received" ? "Receive" as const : "Withdraw" as const,
+          type: record.type === "swap" ? "Swap" as const : record.direction === "received" ? "Receive" as const : "Withdraw" as const,
           status: record.status,
           amount: Number(record.amount),
           asset: record.asset,
+          amountIn: record.amountIn === undefined ? undefined : Number(record.amountIn),
+          assetIn: record.assetIn,
+          amountOut: record.amountOut === undefined ? undefined : Number(record.amountOut),
+          assetOut: record.assetOut,
           date: record.date,
           hash: record.hash ?? record.id,
         }));
@@ -141,7 +157,8 @@ export default function Transactions({ email, network } : TransactionProps) {
   const query = search.trim().toLowerCase();
   const visibleTransactions = transactions.filter((transaction) =>
     (filter === "All" || transaction.type === filter) &&
-    (!query || [transaction.name, transaction.address, transaction.hash, transaction.status]
+    (!query || [transaction.name, transaction.address, transaction.hash, transaction.status, transaction.asset, transaction.assetIn, transaction.assetOut, transaction.type]
+      .filter((value): value is string => Boolean(value))
       .some((value) => value.toLowerCase().includes(query)))
   );
   const completedCount = transactions.filter((t) => t.status === "Completed").length;
@@ -155,7 +172,7 @@ export default function Transactions({ email, network } : TransactionProps) {
           <p className="text-sm font-medium text-primary">Wallet activity</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Transactions</h1>
           <p className="mt-1 text-sm text-foreground/55">
-            Browse recent {network === "stellar" ? "Stellar" : "BOT Chain"} activity, 10 transactions at a time.
+            Browse recent {walletNetworkLabel(network)} activity, 10 transactions at a time.
           </p>
         </div>
         <button
@@ -193,7 +210,7 @@ export default function Transactions({ email, network } : TransactionProps) {
               <>
                 {new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(receivedTotal)}
                 <span className="ml-1.5 text-sm font-medium text-foreground/50">
-                  {network === "bot_chain" ? "BOT" : "XLM"}
+                  {network === "otterpie_bot_chain" ? "PIE" : isBotChainNetwork(network) ? "BOT" : "XLM"}
                 </span>
               </>
             )}
@@ -284,7 +301,9 @@ export default function Transactions({ email, network } : TransactionProps) {
               </svg>
             </div>
             <p className="mt-3 text-sm font-medium">No transactions found</p>
-            <p className="mt-1 text-xs text-foreground/50">Try another search or filter.</p>
+            <p className="mt-1 text-xs text-foreground/50">
+              {filter === "Swap" ? "Swap records will appear here after real on-chain swaps are available." : "Try another search or filter."}
+            </p>
           </div>
         ) : (
           <>
@@ -313,15 +332,15 @@ export default function Transactions({ email, network } : TransactionProps) {
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium">{transaction.name}</p>
                             <p className="mt-0.5 font-mono text-xs text-foreground/45">
-                              {transaction.type === "Withdraw" ? "Sent" : "Received"} · {shortAddress(transaction.address)}
+                              {transaction.type === "Swap" ? "Swap transaction" : `${transaction.type === "Withdraw" ? "Sent" : "Received"} · ${shortAddress(transaction.address)}`}
                             </p>
                           </div>
                         </div>
                       </td>
                       <td className="px-5 py-4 text-sm text-foreground/65">{formatDate(transaction.date)}</td>
                       <td className="px-5 py-4"><StatusBadge status={transaction.status} /></td>
-                      <td className={`px-5 py-4 text-right text-sm font-semibold tabular-nums ${transaction.type === "Receive" ? "text-emerald-600" : "text-foreground"}`}>
-                        {transaction.type === "Receive" ? "+" : "−"}{formatAmount(transaction.amount)} {transaction.asset}
+                      <td className="px-5 py-4 text-right text-sm font-semibold tabular-nums">
+                        <TransactionAmount transaction={transaction} />
                       </td>
                       <td className="px-5 py-4 font-mono text-xs">
                         <ExplorerLink network={network} hash={transaction.hash} />
@@ -383,11 +402,13 @@ function TransactionCard({ transaction, network }: { transaction: Transaction; n
           <DirectionIcon type={transaction.type} />
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{transaction.name}</p>
-            <p className="mt-0.5 font-mono text-xs text-foreground/45">{shortAddress(transaction.address)}</p>
+            <p className="mt-0.5 font-mono text-xs text-foreground/45">
+              {transaction.type === "Swap" ? "Swap transaction" : shortAddress(transaction.address)}
+            </p>
           </div>
         </div>
-          <p className={`shrink-0 text-sm font-semibold tabular-nums ${transaction.type === "Receive" ? "text-emerald-600" : "text-foreground"}`}>
-          {transaction.type === "Receive" ? "+" : "−"}{formatAmount(transaction.amount)} {transaction.asset}
+        <p className="shrink-0 text-right text-sm font-semibold tabular-nums">
+          <TransactionAmount transaction={transaction} />
         </p>
       </div>
       <div className="mt-3 flex items-center justify-between gap-3 pl-12">
@@ -421,13 +442,33 @@ function ExplorerLink({ network, hash }: { network: string; hash: string }) {
 
 function DirectionIcon({ type }: { type: Transaction["type"] }) {
   const received = type === "Receive";
+  const swapped = type === "Swap";
   return (
-    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${received ? "bg-emerald-500/10 text-emerald-600" : "bg-primary/10 text-primary"}`}>
+    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${swapped ? "bg-secondary/15 text-secondary" : received ? "bg-emerald-500/10 text-emerald-600" : "bg-primary/10 text-primary"}`}>
       <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-        <path d={received ? "M10 3.5v12m0 0 4-4m-4 4-4-4" : "M10 16.5v-12m0 0 4 4m-4-4-4 4"} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        {swapped ? (
+          <path d="M3.5 6h12m0 0-3-3m3 3-3 3M16.5 14h-12m0 0 3 3m-3-3 3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        ) : (
+          <path d={received ? "M10 3.5v12m0 0 4-4m-4 4-4-4" : "M10 16.5v-12m0 0 4 4m-4-4-4 4"} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        )}
       </svg>
     </span>
   );
+}
+
+function TransactionAmount({ transaction }: { transaction: Transaction }) {
+  if (transaction.type === "Swap" && transaction.amountIn !== undefined && transaction.amountOut !== undefined) {
+    return (
+      <span className="inline-flex flex-col items-end gap-0.5">
+        <span className="text-foreground/65">−{formatAmount(transaction.amountIn)} {transaction.assetIn}</span>
+        <span className="text-emerald-600">+{formatAmount(transaction.amountOut)} {transaction.assetOut}</span>
+      </span>
+    );
+  }
+  if (transaction.type === "Swap") return <span className="text-secondary">Swap</span>;
+  return <span className={transaction.type === "Receive" ? "text-emerald-600" : "text-foreground"}>
+    {transaction.type === "Receive" ? "+" : "−"}{formatAmount(transaction.amount)} {transaction.asset}
+  </span>;
 }
 
 function StatusBadge({ status }: { status: Transaction["status"] }) {

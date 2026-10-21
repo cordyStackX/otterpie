@@ -2,6 +2,7 @@
 
 import { type FormEvent, useEffect, useState } from "react";
 import { Fetch_to } from "@/utilities"; 
+import { walletNetworkLabel } from "@/utilities/network";
 import routes from "@/routes/user.json";
 import authRoutes from "@/routes/auth.json";
 
@@ -355,7 +356,7 @@ export default function Setting({ email, username, storeName, walletAddress, net
               <label htmlFor="setting-wallet-address" className="text-sm font-medium">Wallet address</label>
               {network && (
                 <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium capitalize text-primary">
-                  {network.replaceAll("_", " ")}
+                  {walletNetworkLabel(network)}
                 </span>
               )}
             </div>

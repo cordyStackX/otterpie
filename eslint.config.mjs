@@ -132,6 +132,7 @@ export default [
       "**/.venv/**",
       "**/python/**",
       "**/mobile/**",
+      "hardhat_token_deployments/**",
       "supabase-project/**",
     ],
   },

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fetch_to } from "@/utilities";
+import { isBotChainNetwork, walletNetworkLabel } from "@/utilities/network";
 import routes from "@/routes/jwt.json";
 import QRCode from "qrcode";
 
@@ -138,7 +139,7 @@ export default function Sidebar({
       return;
     }
 
-    const qrPayload = network === "bot_chain"
+    const qrPayload = isBotChainNetwork(network)
       ? `ethereum:${wallet_address}@677`
       : wallet_address;
 
@@ -178,7 +179,7 @@ export default function Sidebar({
           href: `https://stellar.expert/explorer/public/account/${encodeURIComponent(wallet_address)}`,
           label: "View on Stellar Expert",
         }
-      : network === "bot_chain"
+      : isBotChainNetwork(network)
         ? {
             href: `https://scan.botchain.ai/address/${encodeURIComponent(wallet_address)}`,
             label: "View on BOT Chain Explorer",
@@ -301,7 +302,7 @@ export default function Sidebar({
       context.fillText("Scan to pay", 540, 1170);
       context.fillStyle = primaryColor;
       context.font = "400 23px system-ui, sans-serif";
-      context.fillText(network === "bot_chain" ? "BOT Chain · EVM wallet" : "Stellar wallet", 540, 1212);
+      context.fillText(isBotChainNetwork(network) ? `${walletNetworkLabel(network)} · EVM wallet` : "Stellar wallet", 540, 1212);
 
       const imageBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
       if (!imageBlob) return;
@@ -551,8 +552,8 @@ export default function Sidebar({
                 <div className="mt-5 border-t border-foreground/10 pt-5 text-center">
                   <p className="text-sm font-semibold">Scan to pay or deposit to this wallet</p>
                   <p className="mt-1 text-xs text-foreground/50">
-                    {network === "bot_chain"
-                      ? "EVM wallet · BOT Chain Mainnet · Chain ID 677"
+                    {isBotChainNetwork(network)
+                      ? `EVM wallet · ${walletNetworkLabel(network)} · Chain ID 677`
                       : network === "stellar"
                         ? "Non-EVM wallet · Stellar network"
                         : "Scan with a wallet that supports this network."}
@@ -572,12 +573,12 @@ export default function Sidebar({
                     </div>
                   )}
                   <div className="mx-auto mt-4 max-w-2xl rounded-lg bg-foreground/[0.03] p-4 text-left">
-                    {network === "bot_chain" ? (
+                    {isBotChainNetwork(network) ? (
                       <>
                         <h3 className="text-xs font-semibold">Using an EVM wallet</h3>
                         <ol className="mt-2 list-decimal space-y-1.5 pl-4 text-xs leading-relaxed text-foreground/60">
                           <li>Select BOT Chain Mainnet (Chain ID 677) in MetaMask or another EVM wallet.</li>
-                          <li>Scan this QR from the wallet&apos;s send screen. If it doesn&apos;t recognize the QR, copy the address above and select BOT Chain manually.</li>
+                          <li>Scan this QR from the wallet&apos;s send screen. If it doesn&apos;t recognize the QR, copy the address above and select BOT Chain Mainnet manually.</li>
                           <li>Check the recipient and enter the amount. Keep some BOT in the wallet for network fees.</li>
                         </ol>
                       </>

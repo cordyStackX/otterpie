@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { formatEther, isAddress } from "ethers"; // ethers v6
+import { formatEther, formatUnits, isAddress } from "ethers"; // ethers v6
 import { Security } from "@/firewall";
-import { supabaseServer } from "@/lib";
+import { BOT_CHAIN_PIE_TOKEN_ADDRESS, supabaseServer } from "@/lib";
+import { isBotChainNetwork } from "@/utilities/network";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // always read fresh transactions
@@ -38,18 +39,44 @@ type ExplorerTx = {
   isError?: string; // "0" = success
 };
 
+type TokenTransfer = {
+  block_number: number;
+  log_index: number;
+  timestamp: string;
+  transaction_hash: string;
+  from: { hash: string };
+  to: { hash: string };
+  total: { value: string; decimals?: string | null };
+  token: { address: string; decimals?: string | null };
+};
+
+function decodePageCursor(cursor: unknown): Record<string, string> | null {
+  if (typeof cursor !== "string") return null;
+  try {
+    const decoded: unknown = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+    if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) return null;
+    return Object.fromEntries(
+      Object.entries(decoded).filter((entry): entry is [string, string | number] =>
+        typeof entry[1] === "string" || typeof entry[1] === "number"
+      ).map(([key, value]) => [key, String(value)])
+    );
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(params: NextRequest) {
   const auth = await Security(params);
   if (auth?.error) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const { email, cursor } = await params.json();
+  const { email, cursor, asset } = await params.json();
 
   // Only the PUBLIC address is needed, so the private key is never selected.
   const { data, error } = await supabaseServer
     .from("tbl_wallet")
-    .select("wallet_address")
+    .select("wallet_address, network")
     .eq("email", email)
     // TODO: if this table holds both networks, filter by your network/chain column too
     // .eq("network", "bot_chain")
@@ -68,6 +95,81 @@ export async function POST(params: NextRequest) {
   if (!isAddress(address)) {
     console.error("Stored BOT Chain address is invalid");
     return NextResponse.json({ success: false, error: "Server misconfigured" }, { status: 500 });
+  }
+
+  if (asset === "PIE" && isBotChainNetwork(data.network)) {
+    try {
+      const explorerOrigin = new URL(EXPLORER_API_URL).origin;
+      const url = new URL(
+        `/api/v2/addresses/${address}/token-transfers`,
+        explorerOrigin,
+      );
+      url.searchParams.set("type", "ERC-20");
+      url.searchParams.set("token", BOT_CHAIN_PIE_TOKEN_ADDRESS);
+      for (const [key, value] of Object.entries(decodePageCursor(cursor) ?? {})) {
+        url.searchParams.set(key, value);
+      }
+
+      const response = await fetch(url, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(10_000),
+      });
+      // A fresh wallet may not be indexed yet. Keep the history PIE-only and
+      // show it as empty until the wallet has a PIE transfer.
+      if (response.status !== 404 && !response.ok) {
+        console.error("BOT Chain token-transfer API returned", response.status);
+        return NextResponse.json({ success: false, error: "Could not reach BOT Chain" }, { status: 502 });
+      }
+
+      const body = response.status === 404
+        ? null
+        : (await response.json()) as {
+            items?: TokenTransfer[];
+            next_page_params?: Record<string, string | number> | null;
+          };
+      if (body && !Array.isArray(body.items)) {
+        console.error("Unexpected BOT Chain token-transfer response");
+        return NextResponse.json({ success: false, error: "Could not read PIE transfers" }, { status: 502 });
+      }
+
+      const me = address.toLowerCase();
+      const transactions: Incoming[] = (body?.items ?? [])
+        .filter((transfer) => transfer.token?.address?.toLowerCase() === BOT_CHAIN_PIE_TOKEN_ADDRESS.toLowerCase())
+        .map((transfer) => {
+          const from = transfer.from?.hash ?? null;
+          const to = transfer.to?.hash ?? null;
+          const received = to?.toLowerCase() === me;
+          const decimals = Number(transfer.total?.decimals ?? transfer.token?.decimals ?? 18);
+          const date = new Date(transfer.timestamp);
+          return {
+            id: `${transfer.transaction_hash}-${transfer.log_index}`,
+            date: date.toISOString(),
+            amount: formatUnits(BigInt(transfer.total.value), decimals),
+            asset: "PIE",
+            from,
+            to,
+            direction: received ? "received" : "sent",
+            type: "transfer",
+            status: "Completed",
+          };
+        });
+      const nextCursor = body?.next_page_params && Object.keys(body.next_page_params).length > 0
+        ? Buffer.from(JSON.stringify(body.next_page_params)).toString("base64url")
+        : null;
+
+      return NextResponse.json({
+        success: true,
+        funded: transactions.length > 0,
+        address,
+        asset: "PIE",
+        transactions,
+        nextCursor,
+        hasMore: nextCursor !== null,
+      });
+    } catch (e) {
+      console.error(e);
+      return NextResponse.json({ success: false, error: "Could not reach BOT Chain" }, { status: 502 });
+    }
   }
 
   try {
@@ -169,6 +271,7 @@ export async function POST(params: NextRequest) {
       success: true,
       funded: transactions.length > 0,
       address,
+      asset: "BOT",
       transactions,
       nextCursor: hasMore ? nextCursor : null,
       hasMore,
