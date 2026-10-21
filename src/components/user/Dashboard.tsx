@@ -827,7 +827,10 @@ export default function Dashboard({ email, network }: DashboardProps) {
             {isBotChainNetwork(network) && (
               <button
                 type="button"
-                onClick={() => setSelectedAsset(isPieSelected ? "BOT" : "PIE")}
+                onClick={() => {
+                  setSelected(null);
+                  setSelectedAsset(isPieSelected ? "BOT" : "PIE");
+                }}
                 aria-label={isPieSelected ? "Switch to BOT Chain" : "Switch to PIE"}
                 className="flex w-full items-center justify-center gap-1 rounded-md border border-yellow-400/50 bg-yellow-400/15 px-2 py-2 text-xs font-semibold text-yellow-300 outline-none transition-colors hover:bg-yellow-400/25 focus-visible:ring-2 focus-visible:ring-yellow-300/50"
               >
@@ -850,14 +853,16 @@ export default function Dashboard({ email, network }: DashboardProps) {
               </button>
             )}
             <div className="flex w-full gap-2">
-              <button
-                type="button"
-                onClick={() => setSelected({ id: "__wallet__", name: "wallet", amount: nativeBalance })}
-                disabled={loadingBalance || nativeBalance <= 0 || !activeSymbol}
-                className="min-w-0 flex-1 rounded-md border border-primary/30 px-2 py-2 text-xs font-medium text-primary outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
-              >
-                Withdraw
-              </button>
+              {!isPieSelected && (
+                <button
+                  type="button"
+                  onClick={() => setSelected({ id: "__wallet__", name: "wallet", amount: nativeBalance })}
+                  disabled={loadingBalance || nativeBalance <= 0 || !activeSymbol}
+                  className="min-w-0 flex-1 rounded-md border border-primary/30 px-2 py-2 text-xs font-medium text-primary outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
+                >
+                  Withdraw
+                </button>
+              )}
               {isBotChainNetwork(network) && (
                 <button
                   type="button"
@@ -1017,10 +1022,15 @@ export default function Dashboard({ email, network }: DashboardProps) {
                 <li key={c.id}>
                   <button
                     type="button"
-                    onClick={() => setSelected({ id: c.id, name: c.name, amount: c.available })}
-                    aria-haspopup="dialog"
-                    aria-label={`${isPieSelected ? "Transfer" : "Withdraw"} from ${c.name}, balance ${formatAmount(c.available)}`}
-                    className="relative isolate block w-full overflow-hidden rounded-xl border border-foreground/10 border-l-4 bg-background px-4 py-3.5 text-left outline-none transition-colors hover:bg-foreground/[0.02] focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={() => {
+                      if (!isPieSelected) setSelected({ id: c.id, name: c.name, amount: c.available });
+                    }}
+                    disabled={isPieSelected}
+                    aria-haspopup={isPieSelected ? undefined : "dialog"}
+                    aria-label={isPieSelected
+                      ? `${c.name}, ${formatAmount(c.available)} PIE category`
+                      : `Withdraw from ${c.name}, balance ${formatAmount(c.available)}`}
+                    className={`relative isolate block w-full overflow-hidden rounded-xl border border-foreground/10 border-l-4 bg-background px-4 py-3.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-default ${isPieSelected ? "" : "hover:bg-foreground/[0.02]"}`}
                     style={{ borderLeftColor: c.color || colorForIndex(i) }}
                   >
                     {/* Otter mascot as a soft background on the right of the card */}
@@ -1106,7 +1116,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
         )}
       </section>
 
-      {selected && (
+      {selected && !isPieSelected && (
         <WithdrawDialog
           key={selected.id}
           category={selected}
