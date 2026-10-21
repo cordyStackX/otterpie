@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   PieChart,
   Pie,
@@ -38,6 +39,25 @@ function colorForIndex(i: number) {
   const alphaCycle = [1, 0.75, 0.5, 0.35];
   const alpha = alphaCycle[Math.floor(i / 2) % alphaCycle.length];
   return `rgba(${base}, ${alpha})`;
+}
+
+function hueFromHex(color: string | undefined) {
+  const match = color?.match(/^#([\da-f]{6})$/i);
+  if (!match) return 190;
+  const value = Number.parseInt(match[1], 16);
+  const r = ((value >> 16) & 255) / 255;
+  const g = ((value >> 8) & 255) / 255;
+  const b = (value & 255) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+  if (delta === 0) return 190;
+  const hue = max === r
+    ? ((g - b) / delta) % 6
+    : max === g
+      ? (b - r) / delta + 2
+      : (r - g) / delta + 4;
+  return ((hue * 60) % 360 + 360) % 360;
 }
 
 type FormatAmount = (value: number) => string;
@@ -1013,19 +1033,16 @@ export default function Dashboard({ email, network }: DashboardProps) {
                     style={{ borderLeftColor: c.color || colorForIndex(i) }}
                   >
                     {/* Otter mascot as a soft background on the right of the card */}
-                    <div
+                    <Image
+                      src={c.icons || DEFAULT_OTTER}
+                      alt=""
+                      width={112}
+                      height={112}
+                      unoptimized
                       aria-hidden="true"
-                      className="pointer-events-none absolute -bottom-4 -right-3 -z-10 h-28 w-28 opacity-35"
+                      className="pointer-events-none absolute -bottom-4 -right-3 -z-10 h-28 w-28 opacity-40"
                       style={{
-                        backgroundColor: c.color || colorForIndex(i),
-                        maskImage: `url("${c.icons || DEFAULT_OTTER}")`,
-                        WebkitMaskImage: `url("${c.icons || DEFAULT_OTTER}")`,
-                        maskRepeat: "no-repeat",
-                        WebkitMaskRepeat: "no-repeat",
-                        maskPosition: "center",
-                        WebkitMaskPosition: "center",
-                        maskSize: "contain",
-                        WebkitMaskSize: "contain",
+                        filter: `grayscale(0.35) sepia(0.7) saturate(2.2) hue-rotate(${hueFromHex(c.color) - 25}deg)`,
                       }}
                     />
 
