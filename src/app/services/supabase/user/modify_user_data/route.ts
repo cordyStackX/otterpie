@@ -18,9 +18,9 @@ export async function PATCH(request: NextRequest) {
   }
 
   try {
-    const { email, hasUsername, hasStoreName, hasPassword, hasNewPassword } = await request.json();
+    const { email, hasUsername, hasPassword, hasNewPassword } = await request.json();
 
-    if (!hasUsername && !hasStoreName && !hasPassword) {
+    if (!hasUsername && !hasPassword) {
       return NextResponse.json({ success: false, error: "No account changes provided" }, { status: 400 });
     }
 
@@ -38,23 +38,8 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    let cleanStoreName: string | undefined;
-    if (hasStoreName !== undefined) {
-      if (typeof hasStoreName !== "string") {
-        return NextResponse.json({ success: false, error: "Invalid store name" }, { status: 400 });
-      }
-      cleanStoreName = hasStoreName.trim();
-      if (!cleanStoreName || cleanStoreName.length > 60) {
-        return NextResponse.json(
-          { success: false, error: "Store name must be between 1 and 60 characters" },
-          { status: 400 }
-        );
-      }
-    }
-
-    const accountUpdate: { username?: string; storename?: string; password?: string } = {};
+    const accountUpdate: { username?: string; password?: string } = {};
     if (cleanUsername !== undefined) accountUpdate.username = cleanUsername.toLowerCase();
-    if (cleanStoreName !== undefined) accountUpdate.storename = cleanStoreName.toLowerCase();
 
     if (hasPassword) {
       if (typeof hasPassword !== "string" || typeof hasNewPassword !== "string") {

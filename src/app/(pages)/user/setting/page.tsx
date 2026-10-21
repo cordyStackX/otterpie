@@ -9,7 +9,7 @@ import routes from "@/routes/jwt.json";
 export default function UserSettingPage() {
   const router = useRouter();
   const [data, setData] = useState({
-    email: "", network: "", username: "", wallet_address: "", storeName: ""
+    email: "", network: "", username: "", wallet_address: ""
   });
 
   useEffect(() => {
@@ -23,8 +23,7 @@ export default function UserSettingPage() {
           email: data.email,
           network: data.network,
           username: data.username,
-          wallet_address: data.wallet_address,
-          storeName: data.storeName
+          wallet_address: data.wallet_address
         }));
       } else {
         router.push("/auth/login");
@@ -35,16 +34,14 @@ export default function UserSettingPage() {
   }, []);
   return (
     <main className="min-h-screen bg-background px-4 py-8 md:px-8">
-      <Sidebar userEmail={data.email} userName={data.username} storeName={data.storeName} wallet_address={data.wallet_address} network={data.network} />
+      <Sidebar userEmail={data.email} userName={data.username} wallet_address={data.wallet_address} network={data.network} />
       <section className="mx-auto max-w-7xl pt-8 md:pl-72">
         <Setting
           email={data.email}
           username={data.username}
           walletAddress={data.wallet_address}
           network={data.network}
-          storeName={data.storeName}
           onUsernameChange={(username) => setData((current) => ({ ...current, username }))}
-          onStoreNameChange={(storeName) => setData((current) => ({ ...current, storeName }))}
         />
       </section>
     </main>

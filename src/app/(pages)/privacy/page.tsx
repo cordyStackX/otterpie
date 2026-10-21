@@ -11,7 +11,7 @@ const sections: LegalSection[] = [
     title: "Information we handle",
     paragraphs: ["Depending on how you use Otterpie, the service processes:"],
     bullets: [
-      "Account details: store name, username, email address, and a password hash. The app does not need to store your account password in readable form.",
+      "Account details: username, email address, and a password hash. The app does not need to store your account password in readable form.",
       "Wallet details: selected network, public wallet address, and the wallet private key, which is encrypted before it is stored. The server can decrypt the key to provide wallet features and submit transfers you request.",
       "Category settings: category names, icons, colors, and allocation percentages.",
       "Transaction and balance information associated with your wallet addresses, retrieved from blockchain networks or their service providers.",

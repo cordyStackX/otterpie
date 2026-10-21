@@ -20,9 +20,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Invalid credentials." }, { status: 400 });
     }
 
-    const { storeName, email, password, network, username } = body as Record<string, unknown>;
+    const { email, password, network, username } = body as Record<string, unknown>;
     if (
-      typeof storeName !== "string" || !storeName.trim() ||
       typeof email !== "string" || !email.trim() ||
       typeof password !== "string" || !password ||
       typeof network !== "string" ||
@@ -36,10 +35,6 @@ export async function POST(request: NextRequest) {
     if (password.length <= 8) {
       return NextResponse.json({ success: false, error: "Password must be more than 8 characters." }, { status: 400 });
     }
-    if (storeName.trim().length > 60) {
-      return NextResponse.json({ success: false, error: "Store name must be 60 characters or fewer." }, { status: 400 });
-    }
-
     const normalizedEmail = email.trim().toLowerCase();
     const networkConfig = getWalletNetworkConfig(network);
     if (!networkConfig?.signup.enabled || networkConfig.signup.value !== network) {
@@ -56,7 +51,6 @@ export async function POST(request: NextRequest) {
       .insert([{
         email: normalizedEmail,
         password: await bcrypt.hash(password, 10),
-        storename: storeName.trim().toLowerCase(),
         username: username.trim().toLowerCase(),
         confirm_email: 0,
       }]);

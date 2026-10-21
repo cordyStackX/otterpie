@@ -9,16 +9,14 @@ import authRoutes from "@/routes/auth.json";
 type SettingProps = {
   email: string;
   username: string;
-  storeName: string;
   walletAddress: string;
   network: string;
   onUsernameChange: (username: string) => void;
-  onStoreNameChange: (storeName: string) => void;
 };
 
 const card = "rounded-2xl border border-foreground/10 bg-background shadow-sm";
 
-export default function Setting({ email, username, storeName, walletAddress, network, onUsernameChange, onStoreNameChange }: SettingProps) {
+export default function Setting({ email, username, walletAddress, network, onUsernameChange }: SettingProps) {
   const [secretDialogOpen, setSecretDialogOpen] = useState(false);
   const [secretPassword, setSecretPassword] = useState("");
   const [agreedToSecretReveal, setAgreedToSecretReveal] = useState(false);
@@ -27,7 +25,6 @@ export default function Setting({ email, username, storeName, walletAddress, net
   const [revealingSecret, setRevealingSecret] = useState(false);
   const [copied, setCopied] = useState(false);
   const [newUsername, setNewUsername] = useState(username);
-  const [newStoreName, setNewStoreName] = useState(storeName);
   const [usernameMessage, setUsernameMessage] = useState("");
   const [savingUsername, setSavingUsername] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -39,18 +36,12 @@ export default function Setting({ email, username, storeName, walletAddress, net
   const [sendingForgotPassword, setSendingForgotPassword] = useState(false);
 
   useEffect(() => setNewUsername(username), [username]);
-  useEffect(() => setNewStoreName(storeName), [storeName]);
 
   const updateProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const cleanUsername = newUsername.trim();
-    const cleanStoreName = newStoreName.trim();
     if (!cleanUsername || cleanUsername.length >= 15) {
       setUsernameMessage("Username must be between 1 and 14 characters.");
-      return;
-    }
-    if (!cleanStoreName || cleanStoreName.length > 60) {
-      setUsernameMessage("Store name must be between 1 and 60 characters.");
       return;
     }
 
@@ -59,7 +50,6 @@ export default function Setting({ email, username, storeName, walletAddress, net
     try {
       const response = await Fetch_to("PATCH", routes.modify_user_data, {
         hasUsername: cleanUsername,
-        hasStoreName: cleanStoreName,
         email,
       });
       if (!response.success) {
@@ -67,11 +57,8 @@ export default function Setting({ email, username, storeName, walletAddress, net
         return;
       }
       const updatedUsername = cleanUsername.toLowerCase();
-      const updatedStoreName = cleanStoreName.toLowerCase();
       setNewUsername(updatedUsername);
-      setNewStoreName(updatedStoreName);
       onUsernameChange(updatedUsername);
-      onStoreNameChange(updatedStoreName);
       setUsernameMessage("Profile updated.");
     } catch {
       setUsernameMessage("Could not update username. Please try again.");
@@ -232,17 +219,6 @@ export default function Setting({ email, username, storeName, walletAddress, net
               value={email}
               readOnly
               className="mt-2 w-full rounded-xl border border-foreground/10 bg-foreground/[0.03] px-4 py-3 text-sm font-normal text-foreground/75 outline-none"
-            />
-          </label>
-          <label className="block text-sm font-medium" htmlFor="setting-store-name">
-            Store name
-            <input
-              id="setting-store-name"
-              value={newStoreName}
-              onChange={(event) => { setNewStoreName(event.target.value.slice(0, 60)); setUsernameMessage(""); }}
-              maxLength={60}
-              required
-              className="mt-2 w-full rounded-xl border border-foreground/10 bg-background px-4 py-3 text-sm font-normal outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
             />
           </label>
         </div>

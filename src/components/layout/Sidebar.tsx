@@ -84,7 +84,6 @@ const navItems = [
 type SidebarProps = {
   userName?: string;
   userEmail?: string;
-  storeName?: string;
   wallet_address?: string;
   network?: string;
   onLogout?: () => void;
@@ -93,7 +92,6 @@ type SidebarProps = {
 export default function Sidebar({
   userName = "Your account",
   userEmail,
-  storeName,
   wallet_address,
   network,
   onLogout,
@@ -265,22 +263,11 @@ export default function Sidebar({
       context.fillStyle = primaryColor;
       context.font = "700 54px system-ui, sans-serif";
       const brandLabel = "Otterpie";
-      const brandWidth = context.measureText(brandLabel).width;
-      context.fillStyle = primaryColor;
-      context.font = "400 31px system-ui, sans-serif";
-      const storeLabel = (storeName?.trim() || "My Store").slice(0, 36);
-      const storeWidth = context.measureText(storeLabel).width;
-      const separatorWidth = 34;
-      const labelStart = (canvas.width - brandWidth - separatorWidth - storeWidth) / 2;
       context.textAlign = "left";
       context.fillStyle = primaryColor;
       context.font = "700 54px system-ui, sans-serif";
-      context.fillText(brandLabel, labelStart, 272);
-      context.fillStyle = secondaryColor;
-      context.font = "400 31px system-ui, sans-serif";
-      context.fillText("·", labelStart + brandWidth + 12, 270);
-      context.fillStyle = primaryColor;
-      context.fillText(storeLabel, labelStart + brandWidth + separatorWidth, 270, 500);
+      const brandWidth = context.measureText(brandLabel).width;
+      context.fillText(brandLabel, (canvas.width - brandWidth) / 2, 272);
 
       // The QR sits on a quiet white panel with generous scan margin.
       context.fillStyle = "rgba(255,255,255,0.94)";
@@ -309,9 +296,8 @@ export default function Sidebar({
 
       const imageUrl = URL.createObjectURL(imageBlob);
       const link = document.createElement("a");
-      const storeSlug = (storeName?.trim() || "store").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
       link.href = imageUrl;
-      link.download = `otterpie-${storeSlug || "store"}-payment-qr.png`;
+      link.download = "otterpie-payment-qr.png";
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(imageUrl), 1000);
     } catch {
@@ -478,8 +464,6 @@ export default function Sidebar({
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-foreground/45">Username</p>
                     <p className="mt-1 break-words text-base font-semibold">{userName}</p>
-                    <p className="mt-2 text-xs font-medium text-foreground/45">Store name</p>
-                    <p className="mt-1 break-words text-sm text-foreground/75">{storeName || "Not available"}</p>
                     <p className="mt-2 text-xs font-medium text-foreground/45">Email</p>
                     <p className="mt-1 break-all text-sm text-foreground/75">{userEmail || "Not available"}</p>
                   </div>

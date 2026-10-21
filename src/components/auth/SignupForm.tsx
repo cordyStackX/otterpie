@@ -13,7 +13,6 @@ const networkOptions = [
 ];
 
 export default function SignupForm() {
-  const [storeName, setStoreName] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -49,7 +48,6 @@ export default function SignupForm() {
     try {
       
       const response = await Fetch_to("POST", routes.singup, {
-        storeName: storeName,
         email: email,
         password: confirmPassword,
         network: network,
@@ -73,7 +71,7 @@ export default function SignupForm() {
   if (confirmationSent) {
     return (
       <ReceiptCard>
-        <Logo tagline="Set up your store in a few taps." />
+        <Logo tagline="Create your Otterpie wallet." />
         <div className="bg-background px-6 pb-8 pt-7">
           <h1 className="text-2xl font-semibold text-foreground">Confirm your email</h1>
           <p className="mt-2 text-sm leading-6 text-foreground/60">
@@ -90,7 +88,7 @@ export default function SignupForm() {
 
   return (
     <ReceiptCard>
-      <Logo tagline="Set up your store in a few taps." />
+      <Logo tagline="Create your Otterpie wallet." />
 
       <div className="bg-background px-6 pt-7 pb-8">
         <h1 className="text-2xl font-semibold text-foreground">
@@ -101,15 +99,6 @@ export default function SignupForm() {
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <TextField
-            id="storeName"
-            label="Store name"
-            type="text"
-            required
-            value={storeName}
-            onChange={(e) => setStoreName(e.target.value)}
-            placeholder="Enter store name"
-          />
           <TextField
             id="username"
             label="Username"

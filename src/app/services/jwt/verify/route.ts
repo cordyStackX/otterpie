@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
-import { supabaseServer } from "@/lib";
 
 type TokenPayload = {
   data?: {
@@ -34,23 +33,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: "UnAuth" }, { status: 401 });
     }
 
-    const { data: account, error } = await supabaseServer
-      .from("tbl_auth")
-      .select("storename")
-      .eq("email", email)
-      .maybeSingle();
-
-    if (error) {
-      console.error("Could not retrieve account profile:", error);
-      return NextResponse.json({ success: false, error: "Could not retrieve account profile" }, { status: 500 });
-    }
-
     return NextResponse.json({
       success: true,
-      message: {
-        ...decoded,
-        data: { ...decoded.data, storeName: account?.storename ?? "" },
-      },
+      message: decoded,
     }, { status: 200 });
   } catch {
     return NextResponse.json({ success: false, error: "UnAuth" }, { status: 401 });
