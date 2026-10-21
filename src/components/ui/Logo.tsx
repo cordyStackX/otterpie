@@ -18,7 +18,7 @@ export default function Logo({
           priority
           className="h-12 w-12 rounded-xl bg-white/15 p-1.5"
         />
-        <p className="text-xl font-semibold tracking-tight text-background">Otterpie</p>
+        <p className="text-xl font-semibold tracking-tight text-background">Otterpie<span className="text-foreground">.</span></p>
       </div>
       <p className="ml-15 mt-0.5 text-xs text-background/80">{tagline}</p>
     </div>

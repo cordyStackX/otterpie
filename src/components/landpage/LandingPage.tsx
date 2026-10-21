@@ -31,7 +31,7 @@ export default function LandingPage() {
       <header className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 sm:px-8 lg:px-12">
         <Link href="/" aria-label="Otterpie home" className="flex items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary/50">
           <Image src="/logo.svg" alt="" width={44} height={44} priority className="h-11 w-11 rounded-xl bg-primary/10 p-1" />
-          <span className="text-xl font-bold tracking-tight">otterpie<span className="text-primary">.</span></span>
+          <span className="text-xl font-bold tracking-tight">Otterpie<span className="text-primary">.</span></span>
         </Link>
 
         <nav aria-label="Main navigation" className="hidden items-center gap-8 text-sm font-medium text-foreground/65 md:flex">

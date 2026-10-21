@@ -708,7 +708,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
             </p>
           ) : (
             <>
-              <div className="relative mt-2 min-h-0 flex-1">
+              <div className="relative mt-2 h-56 w-full flex-none sm:h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -823,7 +823,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
             </div>
           </div>
 
-          <div className="mt-4 min-h-0 flex-1">
+          <div className="mt-4 h-64 w-full min-w-0 flex-none sm:h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={salesData} margin={{ left: -12, right: 4, top: 4 }}>
                 <CartesianGrid

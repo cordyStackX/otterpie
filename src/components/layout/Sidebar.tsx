@@ -324,7 +324,7 @@ export default function Sidebar({
             className="flex items-center gap-2 rounded-md text-lg font-semibold tracking-tight text-primary outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           >
             <Image src="/logo.svg" alt="" width={32} height={32} priority />
-            Otterpie
+            Otterpie<span className="text-secondary">.</span>
           </Link>
 
           <button
@@ -425,7 +425,7 @@ export default function Sidebar({
       {/* Profile details */}
       {isProfileOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/30 p-3 backdrop-blur-[2px] sm:items-center sm:p-4"
           onClick={() => setIsProfileOpen(false)}
         >
           <section
@@ -433,7 +433,7 @@ export default function Sidebar({
             aria-modal="true"
             aria-labelledby="profile-title"
             onClick={(event) => event.stopPropagation()}
-            className="w-full max-w-5xl rounded-2xl border border-foreground/10 bg-background p-5 text-foreground shadow-xl sm:p-6"
+            className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl overflow-y-auto rounded-2xl border border-foreground/10 bg-background p-4 text-foreground shadow-xl sm:max-h-[calc(100dvh-2rem)] sm:p-6"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -456,9 +456,9 @@ export default function Sidebar({
             </div>
 
             <div className="mt-6 space-y-5">
-              <section aria-label="Account profile" className="rounded-xl border border-foreground/10 bg-foreground/[0.02] p-5">
-                <div className="flex items-center gap-4">
-                  <span aria-hidden="true" className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full bg-primary/10 text-4xl font-semibold text-primary">
+              <section aria-label="Account profile" className="rounded-xl border border-foreground/10 bg-foreground/[0.02] p-4 sm:p-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <span aria-hidden="true" className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary/10 text-2xl font-semibold text-primary sm:h-24 sm:w-24 sm:text-4xl">
                     {initial}
                   </span>
                   <div className="min-w-0">
@@ -469,12 +469,12 @@ export default function Sidebar({
                     <p className="mt-2 text-xs font-medium text-foreground/45">Email</p>
                     <p className="mt-1 break-all text-sm text-foreground/75">{userEmail || "Not available"}</p>
                   </div>
-                  <div className="ml-auto flex shrink-0 flex-wrap justify-end gap-2">
+                  <div className="flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:shrink-0 sm:flex-row sm:flex-wrap sm:justify-end">
                     <button
                       type="button"
                       onClick={handleDownloadQrCode}
                       disabled={!walletQrCode}
-                      className="inline-flex items-center gap-2 rounded-lg border border-foreground/15 px-4 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-foreground/15 px-4 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40 sm:whitespace-nowrap"
                     >
                       <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
                         <path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5M4 14v2h12v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -484,7 +484,7 @@ export default function Sidebar({
                     <Link
                       href="/user/setting"
                       onClick={() => setIsProfileOpen(false)}
-                      className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-foreground/15 px-4 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-foreground/15 px-4 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:whitespace-nowrap"
                     >
                       <SettingsIcon />
                       Edit profile
@@ -493,7 +493,7 @@ export default function Sidebar({
                 </div>
               </section>
 
-              <section aria-label="Wallet address and payment QR code" className="rounded-xl border border-foreground/10 p-5">
+              <section aria-label="Wallet address and payment QR code" className="rounded-xl border border-foreground/10 p-4 sm:p-5">
                 <p className="text-xs font-medium text-foreground/45">Wallet address</p>
                 <p className="mt-1 break-all font-mono text-xs leading-relaxed text-foreground/80">
                   {wallet_address || "Not available"}
@@ -538,10 +538,10 @@ export default function Sidebar({
                       width={288}
                       height={288}
                       unoptimized
-                      className="mx-auto mt-4 h-56 w-56 rounded-lg bg-white p-2 sm:h-60 sm:w-60"
+                      className="mx-auto mt-4 h-48 w-48 rounded-lg bg-white p-2 sm:h-60 sm:w-60"
                     />
                   ) : (
-                    <div className="mx-auto mt-4 flex h-56 w-56 items-center justify-center rounded-lg border border-dashed border-foreground/15 text-xs text-foreground/45 sm:h-60 sm:w-60">
+                    <div className="mx-auto mt-4 flex h-48 w-48 items-center justify-center rounded-lg border border-dashed border-foreground/15 text-xs text-foreground/45 sm:h-60 sm:w-60">
                       {wallet_address ? "Preparing QR code…" : "Wallet address unavailable"}
                     </div>
                   )}
