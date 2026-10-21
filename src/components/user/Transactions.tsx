@@ -8,7 +8,7 @@ type Transaction = {
   id: string;
   name: string;
   address: string;
-  type: "Receive" | "Withdraw" | "Swap";
+  type: "Receive" | "Withdraw" | "Swap" | "Bridge";
   status: "Completed" | "Pending" | "Failed";
   amount: number;
   asset: string;
@@ -18,6 +18,7 @@ type Transaction = {
   assetIn?: string;
   amountOut?: number;
   assetOut?: string;
+  direction?: "received" | "sent";
 };
 
 type TransactionProps = {
@@ -25,11 +26,11 @@ type TransactionProps = {
   network: string;
 }
 
-type Filter = "All" | "Withdraw" | "Receive" | "Swap";
+type Filter = "All" | "Withdraw" | "Receive" | "Swap" | "Bridge";
 type TransactionCursors = Record<string, string | null>;
 const emptyCursors = (assets: string[] = []): TransactionCursors =>
   Object.fromEntries(assets.map((asset) => [asset, null]));
-const filters: Filter[] = ["All", "Withdraw", "Receive", "Swap"];
+const filters: Filter[] = ["All", "Withdraw", "Receive", "Swap", "Bridge"];
 const skeletonClass = "animate-pulse motion-reduce:animate-none rounded-md bg-foreground/10";
 
 const cardClass = "rounded-xl border border-foreground/10 bg-background";
@@ -48,6 +49,9 @@ const explorerName = (network: string) =>
 export default function Transactions({ email, network } : TransactionProps) {
   const networkConfig = getWalletNetworkConfig(network);
   const transactionAssets = networkConfig?.transactionAssets ?? [];
+  const availableFilters = networkConfig?.family === "bot_chain"
+    ? filters
+    : filters.filter((item) => item !== "Bridge");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("All");
@@ -121,9 +125,12 @@ export default function Transactions({ email, network } : TransactionProps) {
           sourceType: record.type,
           name: record.type === "swap"
             ? `${record.assetIn ?? record.asset} → ${record.assetOut ?? "token"}`
+            : record.type === "bridge_transfer" ? "USDT bridge"
             : shortAddress((record.direction === "received" ? record.from : record.to) ?? "Wallet transfer"),
           address: (record.direction === "received" ? record.from : record.to) ?? "Unknown wallet",
-          type: record.type === "swap" ? "Swap" as const : record.direction === "received" ? "Receive" as const : "Withdraw" as const,
+          type: record.type === "swap" ? "Swap" as const
+            : record.type === "bridge_candidate" || record.type === "bridge_transfer" ? "Bridge" as const
+            : record.direction === "received" ? "Receive" as const : "Withdraw" as const,
           status: record.status,
           amount: Number(record.amount),
           asset: record.asset,
@@ -131,14 +138,17 @@ export default function Transactions({ email, network } : TransactionProps) {
           assetIn: record.assetIn,
           amountOut: record.amountOut === undefined ? undefined : Number(record.amountOut),
           assetOut: record.assetOut,
+          direction: record.direction,
           date: record.date,
         })).sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
 
         // A BDEX router call and its PIE or USDT ERC-20 transfer share a
         // transaction hash. Collapse those legs into one activity row.
         const swapCandidates = mappedRecords.filter((record) => record.sourceType === "swap_candidate");
+        const bridgeCandidates = mappedRecords.filter((record) => record.sourceType === "bridge_candidate");
         const pairedHashes = new Set<string>();
         const swaps: Transaction[] = [];
+        const bridges: Transaction[] = [];
         for (const candidate of swapCandidates) {
           const tokenLeg = mappedRecords.find((record) =>
             record.hash === candidate.hash && record.asset !== "BOT" && record.sourceType !== "swap_candidate"
@@ -167,11 +177,32 @@ export default function Transactions({ email, network } : TransactionProps) {
             assetOut: output.asset,
           });
         }
+        for (const candidate of bridgeCandidates) {
+          const tokenLeg = mappedRecords.find((record) =>
+            record.hash === candidate.hash && record.asset === "USDT" && record.sourceType !== "bridge_candidate"
+          );
+          if (!tokenLeg) continue;
+
+          pairedHashes.add(candidate.hash);
+          bridges.push({
+            id: `bridge-${candidate.hash}`,
+            name: "USDT bridge",
+            address: candidate.address,
+            type: "Bridge",
+            status: candidate.status === "Completed" && tokenLeg.status === "Completed" ? "Completed" : "Failed",
+            amount: tokenLeg.amount,
+            asset: "USDT",
+            date: candidate.date,
+            hash: candidate.hash,
+            direction: "sent",
+          });
+        }
         const mapped: Transaction[] = [
           ...mappedRecords.filter((record) =>
-            record.sourceType !== "swap_candidate" && !pairedHashes.has(record.hash)
+            record.sourceType !== "swap_candidate" && record.sourceType !== "bridge_candidate" && !pairedHashes.has(record.hash)
           ),
           ...swaps,
+          ...bridges,
         ].sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
 
         const updatedCursors = emptyCursors(assets);
@@ -283,7 +314,7 @@ export default function Transactions({ email, network } : TransactionProps) {
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div role="group" aria-label="Filter transactions" className="flex rounded-lg bg-foreground/5 p-1">
-              {filters.map((item) => (
+              {availableFilters.map((item) => (
                 <button
                   key={item}
                   type="button"
@@ -356,7 +387,7 @@ export default function Transactions({ email, network } : TransactionProps) {
             </div>
             <p className="mt-3 text-sm font-medium">No transactions found</p>
             <p className="mt-1 text-xs text-foreground/50">
-              {filter === "Swap" ? "Swap records will appear here after real on-chain swaps are available." : "Try another search or filter."}
+              {filter === "Swap" ? "Swap records will appear here after real on-chain swaps are available." : filter === "Bridge" ? "Bridge transactions will appear here after a BOT Chain bridge transfer." : "Try another search or filter."}
             </p>
           </div>
         ) : (
@@ -387,7 +418,7 @@ export default function Transactions({ email, network } : TransactionProps) {
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium">{transaction.name}</p>
                             <p className="mt-0.5 font-mono text-xs text-foreground/45">
-                              {transaction.type === "Swap" ? "Swap transaction" : `${transaction.type === "Withdraw" ? "Sent" : "Received"} · ${shortAddress(transaction.address)}`}
+                              {transaction.type === "Swap" ? "Swap transaction" : transaction.type === "Bridge" ? "Bridge transfer" : `${transaction.type === "Withdraw" ? "Sent" : "Received"} · ${shortAddress(transaction.address)}`}
                             </p>
                           </div>
                         </div>
@@ -459,7 +490,7 @@ function TransactionCard({ transaction, network }: { transaction: Transaction; n
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{transaction.name}</p>
             <p className="mt-0.5 font-mono text-xs text-foreground/45">
-              {transaction.type === "Swap" ? "Swap transaction" : shortAddress(transaction.address)}
+              {transaction.type === "Swap" ? "Swap transaction" : transaction.type === "Bridge" ? "Bridge transfer" : shortAddress(transaction.address)}
             </p>
           </div>
         </div>
@@ -513,10 +544,11 @@ function TokenBadge({ transaction, network }: { transaction: Transaction; networ
 function DirectionIcon({ type }: { type: Transaction["type"] }) {
   const received = type === "Receive";
   const swapped = type === "Swap";
+  const bridged = type === "Bridge";
   return (
-    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${swapped ? "bg-secondary/15 text-secondary" : received ? "bg-emerald-500/10 text-emerald-600" : "bg-primary/10 text-primary"}`}>
+    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${swapped ? "bg-secondary/15 text-secondary" : bridged ? "bg-cyan-500/10 text-cyan-600" : received ? "bg-emerald-500/10 text-emerald-600" : "bg-primary/10 text-primary"}`}>
       <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-        {swapped ? (
+        {swapped || bridged ? (
           <path d="M3.5 6h12m0 0-3-3m3 3-3 3M16.5 14h-12m0 0 3 3m-3-3 3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         ) : (
           <path d={received ? "M10 3.5v12m0 0 4-4m-4 4-4-4" : "M10 16.5v-12m0 0 4 4m-4-4-4 4"} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -538,8 +570,9 @@ function TransactionAmount({ transaction }: { transaction: Transaction }) {
     );
   }
   if (transaction.type === "Swap") return <span className="text-secondary">Swap</span>;
-  return <span className={transaction.type === "Receive" ? "text-emerald-600" : "text-foreground"}>
-    {transaction.type === "Receive" ? "+" : "−"}{formatAmount(transaction.amount)} {transaction.asset}
+  const received = transaction.direction ? transaction.direction === "received" : transaction.type === "Receive";
+  return <span className={received ? "text-emerald-600" : "text-foreground"}>
+    {received ? "+" : "−"}{formatAmount(transaction.amount)} {transaction.asset}
   </span>;
 }
 

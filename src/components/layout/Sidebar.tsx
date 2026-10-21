@@ -56,6 +56,15 @@ const TransactionsIcon = ({ className }: IconProps) => (
   </svg>
 );
 
+const BridgeIcon = ({ className }: IconProps) => (
+  <svg {...iconProps} className={className}>
+    <path d="M4 7h11a3 3 0 0 1 0 6h-2" />
+    <path d="m9 4-3 3 3 3" />
+    <path d="M20 17H9a3 3 0 0 1 0-6h2" />
+    <path d="m15 14 3 3-3 3" />
+  </svg>
+);
+
 const SettingsIcon = ({ className }: IconProps) => (
   <svg {...iconProps} className={className}>
     <circle cx="12" cy="12" r="3" />
@@ -86,6 +95,7 @@ const CloseIcon = () => (
 const navItems = [
   { href: "/user", label: "Dashboard", icon: DashboardIcon },
   { href: "/user/balance", label: "Balance", icon: BalanceIcon },
+  { href: "/user/bridge", label: "Bridge", icon: BridgeIcon },
   { href: "/user/add-category", label: "Categories", icon: CategoriesIcon },
   { href: "/user/transactions", label: "Transactions", icon: TransactionsIcon },
   { href: "/user/setting", label: "Settings", icon: SettingsIcon },

@@ -12,10 +12,12 @@
   },
   "dependencies": {
     "@next/third-parties": "^16.4.2",
+    "@reown/appkit": "^1.8.24",
     "@stellar/stellar-sdk": "^17.2.1",
     "@supabase/supabase-js": "^2.118.0",
     "@types/bcrypt": "^6.0.0",
     "@types/jsonwebtoken": "^9.0.10",
+    "@walletconnect/ethereum-provider": "^2.26.0",
     "bcrypt": "^6.0.0",
     "ethers": "^6.17.0",
     "jsonwebtoken": "^9.0.3",

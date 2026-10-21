@@ -3,6 +3,7 @@ import { formatEther, formatUnits, isAddress } from "ethers"; // ethers v6
 import { Security } from "@/firewall";
 import { BOT_CHAIN_PIE_TOKEN_ADDRESS, supabaseServer } from "@/lib";
 import { isBotChainNetwork } from "@/utilities/network";
+import walletNetworks from "@/config/json_conf/wallet_networks.json";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // always read fresh transactions
@@ -14,7 +15,8 @@ export const dynamic = "force-dynamic"; // always read fresh transactions
 const EXPLORER_API_URL =
   process.env.BOT_CHAIN_EXPLORER_API_URL || "https://scan.botchain.ai/api";
 const BDEX_V2_ROUTER = "0x1414ed29fdfd322c3c0a830330ed982e2d629e76";
-const BOT_CHAIN_USDT_TOKEN_ADDRESS = "0xaBabc7Ddc03e501d190C676BF3d92ef0e6e87a3C";
+const BOT_CHAIN_USDT_TOKEN_ADDRESS = walletNetworks.bot_chain.bridge.usdtToken;
+const BOT_CHAIN_BRIDGE_ROUTER = walletNetworks.bot_chain.bridge.router;
 
 const EXPLORER_PAGE_SIZE = 50;
 const MAX_EXPLORER_PAGES = 5; // cap work per request while searching for 10 transfers
@@ -137,6 +139,7 @@ export async function POST(params: NextRequest) {
       }
 
       const me = address.toLowerCase();
+      const zeroAddress = "0x0000000000000000000000000000000000000000";
       const transactions: Incoming[] = (body?.items ?? [])
         .filter((transfer) =>
           (transfer.token?.address_hash ?? transfer.token?.address)?.toLowerCase() === tokenAddress.toLowerCase()
@@ -145,6 +148,7 @@ export async function POST(params: NextRequest) {
           const from = transfer.from?.hash ?? null;
           const to = transfer.to?.hash ?? null;
           const received = to?.toLowerCase() === me;
+          const bridgeMint = asset === "USDT" && received && from?.toLowerCase() === zeroAddress;
           const decimals = Number(transfer.total?.decimals ?? transfer.token?.decimals ?? 18);
           const date = new Date(transfer.timestamp);
           return {
@@ -156,7 +160,7 @@ export async function POST(params: NextRequest) {
             from,
             to,
             direction: received ? "received" : "sent",
-            type: "transfer",
+            type: bridgeMint ? "bridge_transfer" : "transfer",
             status: "Completed",
           };
         });
@@ -235,8 +239,9 @@ export async function POST(params: NextRequest) {
         const succeeded = t.isError === undefined || t.isError === "0";
         const hasValue = t.value !== "0" && t.value !== "";
         const isBDEXRouterCall = sent && t.to?.toLowerCase() === BDEX_V2_ROUTER;
+        const isBridgeRouterCall = sent && t.to?.toLowerCase() === BOT_CHAIN_BRIDGE_ROUTER.toLowerCase();
 
-        if ((received || sent) && (hasValue || isBDEXRouterCall)) {
+        if ((received || sent) && (hasValue || isBDEXRouterCall || isBridgeRouterCall)) {
           transactions.push({
             id: t.hash,
             hash: t.hash,
@@ -246,9 +251,8 @@ export async function POST(params: NextRequest) {
             from: t.from ?? null,
             to: t.to ?? null,
             direction: received ? "received" : "sent",
-            // The UI pairs this router call with a PIE transfer sharing its hash.
-            // It only becomes a Swap row when both legs are present.
-            type: isBDEXRouterCall ? "swap_candidate" : "transfer",
+            // The UI pairs router calls with their token transfer logs by hash.
+            type: isBDEXRouterCall ? "swap_candidate" : isBridgeRouterCall ? "bridge_candidate" : "transfer",
             status: succeeded ? "Completed" : "Failed",
           });
         }

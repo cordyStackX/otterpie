@@ -30,6 +30,74 @@
     },
     "features": {
       "pieSwap": true
+    },
+    "bridge": {
+      "enabled": true,
+      "chainId": 677,
+      "rpcUrl": "https://rpc.botchain.ai",
+      "router": "0xef8DC669ECa13E612b67Ff09478352E85bD6CC53",
+      "usdtToken": "0xaBabc7Ddc03e501d190C676BF3d92ef0e6e87a3C",
+      "usdtResourceId": "0xac589789ed8c9d2c61f17b13369864b5f181e58eba230a6ee4ec4c3e7750cd1d",
+      "minimumAmount": "10",
+      "minimumInputIncrement": "0.000001",
+      "feeDenominatorBps": 10000,
+      "usdtResourceAssetType": 2,
+      "networks": {
+        "ethereum": {
+          "label": "Ethereum",
+          "inbound": {
+            "enabled": true,
+            "wallet": "walletconnect",
+            "chainId": 1,
+            "gateway": "0x2945d3aF6f012e49f7421252b5fB57D1bb7E6Edd",
+            "token": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+            "decimals": 6,
+            "explorerUrl": "https://etherscan.io/tx/"
+          },
+          "outbound": {
+            "enabled": true,
+            "chainId": 1,
+            "addressType": "evm",
+            "tokenStandard": "ERC-20"
+          }
+        },
+        "bsc": {
+          "label": "BNB Smart Chain",
+          "inbound": {
+            "enabled": true,
+            "wallet": "walletconnect",
+            "chainId": 56,
+            "gateway": "0x3cd6fB6b0CDdD3610f0f4769AA7Bb686Cd4a4b55",
+            "token": "0x55d398326f99059fF775485246999027B3197955",
+            "decimals": 18,
+            "explorerUrl": "https://bscscan.com/tx/"
+          },
+          "outbound": {
+            "enabled": true,
+            "chainId": 56,
+            "addressType": "evm",
+            "tokenStandard": "BEP-20"
+          }
+        },
+        "tron": {
+          "label": "Tron",
+          "inbound": {
+            "enabled": true,
+            "wallet": "tronlink",
+            "chainId": 728126428,
+            "gateway": "TGhXbQpjBgC6bDp5jAexzeQPHEXXsx5f35",
+            "token": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+            "decimals": 6,
+            "explorerUrl": "https://tronscan.org/#/transaction/"
+          },
+          "outbound": {
+            "enabled": true,
+            "chainId": 728126428,
+            "addressType": "tron",
+            "tokenStandard": "TRC-20"
+          }
+        }
+      }
     }
   },
   "stellar": {
