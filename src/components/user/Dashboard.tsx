@@ -717,20 +717,16 @@ export default function Dashboard({ email, network }: DashboardProps) {
           {loadingBalance ? (
             <div role="status" aria-label="Loading wallet balance" className="flex flex-1 flex-col items-center justify-center">
               <span className="sr-only">Loading wallet balance…</span>
-              <div aria-hidden="true" className={`flex h-48 w-48 items-center justify-center rounded-full border-[14px] border-foreground/10 sm:h-56 sm:w-56 ${skeletonClass}`}>
+              <div aria-hidden="true" className={`flex h-44 w-44 items-center justify-center rounded-full border-[14px] border-foreground/10 sm:h-48 sm:w-48 ${skeletonClass}`}>
                 <div className="flex flex-col items-center gap-2">
                   <span className={`h-3 w-16 ${skeletonClass}`} />
                   <span className={`h-6 w-28 ${skeletonClass}`} />
                 </div>
               </div>
-              <div aria-hidden="true" className="mt-3 w-full max-w-64 space-y-2">
-                <span className={`block h-3 w-full ${skeletonClass}`} />
-                <span className={`block h-3 w-4/5 ${skeletonClass}`} />
-              </div>
             </div>
           ) : (
             <>
-              <div className="relative mt-2 h-56 w-full flex-none sm:h-64">
+              <div className="relative my-auto h-48 w-full flex-none sm:h-52">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -780,7 +776,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
             type="button"
             onClick={() => setSelected({ id: "__all__", name: "wallet", amount: nativeBalance })}
             disabled={loadingBalance || nativeBalance <= 0 || !nativeSymbol}
-            className="mt-3 w-full rounded-md border border-primary/30 px-3 py-2 text-sm font-medium text-primary outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40"
+            className="mt-auto w-full shrink-0 rounded-md border border-primary/30 px-3 py-2 text-sm font-medium text-primary outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Withdraw all funds
           </button>
