@@ -337,7 +337,7 @@ function WithdrawDialog({
               </svg>
             </div>
             <h2 id="withdraw-title" className="mt-4 text-lg font-semibold">
-              Transfer submitted
+              Withdrawal submitted
             </h2>
             <p className="mt-1.5 text-sm text-foreground/60">
               {formatAmount(Number(amount))} was submitted to{" "}
@@ -479,7 +479,7 @@ function WithdrawDialog({
                 disabled={submitting || balance === 0}
                 className="flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-background outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50"
               >
-                {submitting ? `Sending ${asset}…` : `Send ${asset}`}
+                {submitting ? `Withdrawing ${asset}…` : "Withdraw"}
               </button>
             </div>
           </form>
