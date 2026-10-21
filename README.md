@@ -1,7 +1,7 @@
 # Otterpie
 
-**One scan, sliced three ways.**
-Wallet and payment tracking for sari-sari stores, available on Stellar and BOT Chain mainnets.
+**A wallet that shows where the money goes.**
+An adaptable wallet to track balances, understand transactions, and organize funds around your goals. Available on Stellar and BOT Chain mainnets.
 
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![Built with Next.js](https://img.shields.io/badge/Next.js-black)
@@ -12,15 +12,15 @@ Wallet and payment tracking for sari-sari stores, available on Stellar and BOT C
 
 ## The problem
 
-Sari-sari store owners juggle supplier payments, daily income, and savings by hand — usually in cash, usually from memory. There's no easy way to split a single payment between what's owed to a supplier, what the store keeps, and what goes into savings.
+Money often has different purposes: saving for a goal, setting aside rent, managing trading funds, or covering everyday spending. When everything sits together in one wallet, it can be hard to tell how much is available for each purpose and where the money went. People end up reviewing transactions and tracking those amounts by hand.
 
 ## What Otterpie does
 
-A customer scans one QR code to pay into the store's wallet on its selected network: Stellar or BOT Chain. Incoming funds are tracked and allocated across **categories the owner defines themselves** — supplier share, rent, savings, personal income, anything — each with its own percentage.
+Otterpie gives each user a wallet on their selected network: Stellar or BOT Chain. Users can check their balance, review incoming and outgoing transactions, and organize funds across **categories they define themselves** — such as trading, savings, rent, bills, or everyday spending. Payment splits make it easier to see how incoming money is divided, while transaction history helps users understand wallet activity over time.
 
-No manual counting, no separate ledgers, no mental math at the register. One payment in, a clear visual breakdown out.
+The goal is a clearer picture of your money: what came in, what went out, how much is available, and how funds are set aside for different plans.
 
-Built for **Stellar Mainnet** and **BOT Chain Mainnet**. Each store selects a network during signup and gets a wallet for that network. Stellar wallets use the Stellar SDK; BOT Chain wallets use EVM-compatible tooling. Wallet activity is tracked against the owner's custom categories.
+Built for **Stellar Mainnet** and **BOT Chain Mainnet**. Each user selects a network during signup and gets a wallet for that network. Stellar wallets use the Stellar SDK; BOT Chain wallets use EVM-compatible tooling. Wallet activity is tracked against the user's custom categories.
 
 ## Supported networks
 
@@ -31,7 +31,7 @@ Built for **Stellar Mainnet** and **BOT Chain Mainnet**. Each store selects a ne
 
 ## Why not just use GCash?
 
-GCash moves money from one person to one place, full stop. Otterpie takes that same payment and automatically divides it across **categories the store owner defines themselves** — supplier, rent, savings, personal, whatever fits their business — with a live visual breakdown of where every peso went. It's not a replacement for a wallet app; it's the budgeting layer GCash doesn't have.
+Otterpie helps users understand wallet activity, not just receive payments. It lets them review transactions and organize balances into **their own categories** — trading, savings, rent, bills, or whatever fits their plans — so they can see how money is moving and what they have set aside.
 
 ---
 
