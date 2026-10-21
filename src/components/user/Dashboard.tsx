@@ -222,23 +222,26 @@ function shortAddress(address: string) {
 // Uses the native <dialog> element for focus trapping, Escape-to-close and a backdrop.
 function WithdrawDialog({
   category,
-  asset,
+  asset: initialAsset,
+  availableAssets = [],
   network,
   email,
-  formatAmount,
   onClose,
   onWithdrawn,
 }: {
   category: Category;
   asset: string;
+  availableAssets?: { asset: string; balance: number }[];
   network: string;
   email: string;
-  formatAmount: FormatAmount;
   onClose: () => void;
   onWithdrawn: (id: string, amount: number) => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [balance] = useState(category.amount); // available category balance at open
+  const [asset, setAsset] = useState(initialAsset);
+  const balance = category.id === "__wallet__"
+    ? availableAssets.find((item) => item.asset === asset)?.balance ?? category.amount
+    : category.amount;
   const [amount, setAmount] = useState(category.amount ? String(category.amount) : "");
   const [address, setAddress] = useState("");
   const [password, setPassword] = useState("");
@@ -246,6 +249,7 @@ function WithdrawDialog({
   const [status, setStatus] = useState<"idle" | "submitting" | "done">("idle");
   const [sentTo, setSentTo] = useState("");
   const [txHash, setTxHash] = useState("");
+  const formatAssetAmount = (value: number) => `${new Intl.NumberFormat("en-US", { maximumFractionDigits: asset === "USDT" ? 6 : 7 }).format(value)} ${asset}`;
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -336,7 +340,7 @@ function WithdrawDialog({
               Withdrawal submitted
             </h2>
             <p className="mt-1.5 text-sm text-foreground/60">
-              {formatAmount(Number(amount))} was submitted to{" "}
+              {formatAssetAmount(Number(amount))} was submitted to{" "}
               <span className="font-mono text-foreground">{shortAddress(sentTo)}</span>.
             </p>
             {txHash && <p className="mt-2 break-all font-mono text-xs text-foreground/50">Transaction: {txHash}</p>}
@@ -379,10 +383,35 @@ function WithdrawDialog({
               </button>
             </div>
 
+            {category.id === "__wallet__" && availableAssets.length > 1 && (
+              <label htmlFor="withdraw-asset" className="mt-4 block text-sm font-medium text-foreground">
+                Asset
+                <select
+                  id="withdraw-asset"
+                  value={asset}
+                  onChange={(event) => {
+                    const nextAsset = event.target.value;
+                    const nextBalance = availableAssets.find((item) => item.asset === nextAsset)?.balance ?? 0;
+                    setAsset(nextAsset);
+                    setAmount(nextBalance ? String(nextBalance) : "");
+                    setError("");
+                  }}
+                  disabled={submitting || status === "done"}
+                  className="mt-1.5 block w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/25 disabled:opacity-50"
+                >
+                  {availableAssets.map((item) => (
+                    <option key={item.asset} value={item.asset}>
+                      {item.asset} · {new Intl.NumberFormat("en-US", { maximumFractionDigits: item.asset === "USDT" ? 6 : 7 }).format(item.balance)} available
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
             <div className="mt-4 rounded-lg bg-foreground/5 px-4 py-3">
               <p className="text-xs text-foreground/55">Available to withdraw</p>
               <p className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight">
-                {formatAmount(balance)}
+                {formatAssetAmount(balance)}
               </p>
             </div>
 
@@ -394,7 +423,7 @@ function WithdrawDialog({
               type="number"
               min="0"
               max={balance}
-              step={asset === "XLM" ? "0.0000001" : "any"}
+              step={asset === "XLM" ? "0.0000001" : asset === "USDT" ? "0.000001" : "any"}
               value={amount}
               onChange={(e) => {
                 setAmount(e.target.value);
@@ -412,6 +441,9 @@ function WithdrawDialog({
             </label>
             {asset === "PIE" && (
               <p className="mt-2 text-xs text-foreground/50">BOT pays the network fee for this PIE transfer.</p>
+            )}
+            {asset === "USDT" && (
+              <p className="mt-2 text-xs text-foreground/50">Keep BOT in your wallet to pay the USDT transfer network fee.</p>
             )}
             <input
               id="wallet-address"
@@ -849,7 +881,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
                 <button
                   type="button"
                   onClick={() => setSelected({ id: "__wallet__", name: "wallet", amount: nativeBalance })}
-                  disabled={loadingBalance || nativeBalance <= 0 || !activeSymbol}
+                  disabled={loadingBalance || (nativeBalance <= 0 && !(walletData.find((slice) => slice.name === "USDT")?.amount ?? 0)) || !activeSymbol}
                   className="min-w-0 flex-1 rounded-md border border-primary/30 px-2 py-2 text-xs font-medium text-primary outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
                 >
                   Withdraw
@@ -1113,7 +1145,9 @@ export default function Dashboard({ email, network }: DashboardProps) {
           key={selected.id}
           category={selected}
           asset={activeSymbol}
-          formatAmount={formatAmount}
+          availableAssets={isBotChainNetwork(network)
+            ? walletData.filter((slice) => slice.name === "BOT" || slice.name === "USDT").map((slice) => ({ asset: slice.name, balance: slice.amount }))
+            : []}
           email={email}
           onClose={() => setSelected(null)}
           network={network}
