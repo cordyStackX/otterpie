@@ -565,10 +565,15 @@ export default function Dashboard({ email, network }: DashboardProps) {
     let cancelled = false;
 
     const loadRules = async () => {
+      if (!email || !activeSymbol) return;
       setLoadingCategories(true);
+      setRules([]);
+      setAllGoalRules([]);
+      setPageInfo({ total: 0, totalPages: 1, totalPercent: 0 });
       try {
         const response = await Fetch_to("POST", routes.categories, {
           email,
+          asset: activeSymbol,
           page,
           limit: CATEGORIES_PER_PAGE,
         });
@@ -583,6 +588,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
           });
           const allResponse = await Fetch_to("POST", routes.categories, {
             email,
+            asset: activeSymbol,
             page: 1,
             limit: 50,
           });
@@ -601,7 +607,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
     return () => {
       cancelled = true;
     };
-  }, [email, page]);
+  }, [email, page, activeSymbol]);
 
   // Wallet balance + transaction history: load once, then refresh every 30 seconds.
   // The full transaction history is needed to build category allocations accurately.
@@ -977,7 +983,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
       <section aria-labelledby="categories-title">
         <div className="mb-3 flex items-baseline justify-between">
           <h2 id="categories-title" className="text-sm font-semibold text-foreground">
-            Categories
+            {activeSymbol ? `${activeSymbol} categories` : "Categories"}
             {loadingCategories ? (
               <span aria-hidden="true" className={`ml-2 inline-block h-3 w-6 align-middle ${skeletonClass}`} />
             ) : (
@@ -985,7 +991,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
             )}
           </h2>
           <Link
-            href="/user/add-category"
+            href={`/user/add-category?asset=${encodeURIComponent(activeSymbol || "BOT")}`}
             className="rounded text-sm font-medium text-primary outline-none underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-primary/40"
           >
             Manage categories

@@ -73,6 +73,11 @@ export async function POST(params: NextRequest) {
 
   const body = await params.json();
   const email = body?.email;
+  const asset = body?.asset ?? "BOT";
+  if (asset !== "BOT" && asset !== "PIE" && asset !== "XLM") {
+    return NextResponse.json({ success: false, error: "Choose BOT, PIE, or XLM categories." }, { status: 400 });
+  }
+  const categoryColumn = body?.asset === "PIE" ? "category_pie" : "category";
 
   // Paging: 10 categories per page by default
   const limit = Math.min(
@@ -85,10 +90,10 @@ export async function POST(params: NextRequest) {
   }
 
   try {
-    // Only this user's row, and only the jsonb column
+    // PIE categories are isolated from native BOT / Stellar categories.
     const { data, error } = await supabaseServer
       .from("categories")
-      .select("category")
+      .select(categoryColumn)
       .eq("email", email)
       .maybeSingle();
 
@@ -98,7 +103,8 @@ export async function POST(params: NextRequest) {
     }
 
     // No row yet = no categories yet (not an error)
-    const all = withUniqueIds(cleanCategories(data?.category));
+    const categoryData = data as Record<string, unknown> | null;
+    const all = withUniqueIds(cleanCategories(categoryData?.[categoryColumn]));
 
     const total = all.length;
     const totalPages = Math.max(Math.ceil(total / limit), 1);
@@ -108,6 +114,7 @@ export async function POST(params: NextRequest) {
     return NextResponse.json(
       {
         success: true,
+        asset,
         rules: all.slice((page - 1) * limit, page * limit),
         page,
         limit,

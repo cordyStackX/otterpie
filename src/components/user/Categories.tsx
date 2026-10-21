@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { FormEvent, useEffect, useState } from "react";
 import { Fetch_to } from "@/utilities";
+import { isBotChainNetwork } from "@/utilities/network";
 import routes from "@/routes/user.json";
 
 type Category = {
@@ -14,7 +15,7 @@ type Category = {
   color: string;
 };
 
-type CategoriesProps = { email: string };
+type CategoriesProps = { email: string; network: string };
 
 const iconOptions = [
   { name: "Default", path: "/icons/otters/otter-default.svg" },
@@ -40,8 +41,10 @@ const skeletonClass = "animate-pulse motion-reduce:animate-none rounded-md bg-fo
 
 const card = "rounded-xl border border-foreground/10 bg-background";
 
-export default function Categories({ email }: CategoriesProps) {
+export default function Categories({ email, network }: CategoriesProps) {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryAsset, setCategoryAsset] = useState<"BOT" | "PIE">("PIE");
+  const [assetReady, setAssetReady] = useState(false);
   const [categoryPage, setCategoryPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -56,16 +59,25 @@ export default function Categories({ email }: CategoriesProps) {
   const [formError, setFormError] = useState("");
   const [actionError, setActionError] = useState("");
   const [saving, setSaving] = useState(false);
+  const categorySymbol = network === "stellar" ? "XLM" : categoryAsset;
+
+  useEffect(() => {
+    if (!network) return;
+    const requestedAsset = new URLSearchParams(window.location.search).get("asset");
+    setCategoryAsset(network === "stellar" || requestedAsset === "BOT" ? "BOT" : "PIE");
+    setAssetReady(true);
+  }, [network]);
 
   useEffect(() => {
     let cancelled = false;
 
     const loadCategories = async () => {
-      if (!email) return;
+      if (!email || !assetReady) return;
       setLoading(true);
       try {
         const response = await Fetch_to("POST", routes.categories, {
           email,
+          asset: categoryAsset,
           page: 1,
           limit: 50,
         });
@@ -81,7 +93,7 @@ export default function Categories({ email }: CategoriesProps) {
     return () => {
       cancelled = true;
     };
-  }, [email]);
+  }, [email, assetReady, categoryAsset]);
 
   const totalPercent = categories.reduce((sum, category) => sum + category.percent, 0);
   const totalCategoryPages = Math.max(Math.ceil(categories.length / CATEGORIES_PER_PAGE), 1);
@@ -114,6 +126,7 @@ export default function Categories({ email }: CategoriesProps) {
     try {
       const response = await Fetch_to("PATCH", routes.modify_categories, {
         email,
+        asset: categoryAsset,
         category: nextCategories,
       });
       if (!response.success) {
@@ -201,12 +214,35 @@ export default function Categories({ email }: CategoriesProps) {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-medium text-primary">Wallet planning</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Categories</h1>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+            {categorySymbol} categories
+          </h1>
           <p className="mt-1 text-sm text-foreground/55">
             Set a balance share and a target amount for each category.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {isBotChainNetwork(network) && (
+            <div role="group" aria-label="Category asset" className="flex rounded-lg bg-foreground/5 p-1">
+              {(["BOT", "PIE"] as const).map((asset) => (
+                <button
+                  key={asset}
+                  type="button"
+                  onClick={() => {
+                    setCategoryAsset(asset);
+                    setCategoryPage(1);
+                    setCategories([]);
+                    setSelectedForDelete([]);
+                    setLoading(true);
+                  }}
+                  aria-pressed={categoryAsset === asset}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${categoryAsset === asset ? "bg-background text-foreground shadow-sm" : "text-foreground/55 hover:text-foreground"}`}
+                >
+                  {asset}
+                </button>
+              ))}
+            </div>
+          )}
           {editing && selectedForDelete.length > 0 && (
             <button
               type="button"
@@ -263,7 +299,7 @@ export default function Categories({ email }: CategoriesProps) {
       <aside className="rounded-xl border border-primary/15 bg-primary/[0.05] px-4 py-3.5 text-sm leading-6 text-foreground/65">
         <p className="font-semibold text-foreground">How category shares and goals work</p>
         <p className="mt-1">
-          Each category tracks its percentage of your current wallet balance until it reaches its goal. After that, its share stays unassigned. The balance target below the dashboard pie shows how much the wallet needs for every goal to be reached. These are tracking amounts; funds are not moved into separate on-chain wallets.
+          These {categorySymbol} categories track shares and goals separately from other wallet assets. They are tracking amounts; funds are not moved into separate on-chain wallets.
         </p>
       </aside>
 
@@ -397,7 +433,7 @@ export default function Categories({ email }: CategoriesProps) {
                     <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-foreground/8">
                       <div className="h-full rounded-full" style={{ width: `${category.percent}%`, backgroundColor: category.color || DEFAULT_COLOR }} />
                     </div>
-                    <p className="mt-2 text-xs text-foreground/45">Goal: {category.goal > 0 ? category.goal : "Not set"}</p>
+                    <p className="mt-2 text-xs text-foreground/45">Goal: {category.goal > 0 ? `${category.goal} ${categorySymbol}` : "Not set"}</p>
                   </div>
                   {editing && (
                     <div className="flex justify-end">
@@ -526,10 +562,10 @@ export default function Categories({ email }: CategoriesProps) {
               </label>
 
               <label className="block rounded-xl border border-primary/20 bg-primary/[0.04] p-3 text-sm font-medium" htmlFor="category-goal">
-                Goal amount
+                Goal amount ({categorySymbol})
                 <div className="relative mt-1.5">
                   <input id="category-goal" type="number" min="0.0000001" step="any" required value={goal} onChange={(event) => setGoal(event.target.value)} placeholder="e.g. 10" className="w-full rounded-lg border border-foreground/15 bg-background px-3 py-2.5 pr-16 text-sm font-normal outline-none placeholder:text-foreground/35 focus:border-primary/50 focus:ring-2 focus:ring-primary/20" />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-foreground/45">wallet units</span>
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-foreground/45">{categorySymbol}</span>
                 </div>
                 <span className="mt-1 block text-xs font-normal text-foreground/45">The category stops growing when it reaches this amount.</span>
               </label>

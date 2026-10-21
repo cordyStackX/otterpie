@@ -38,7 +38,7 @@ export default function AddCategoryPage() {
     <main className="min-h-screen bg-background px-4 py-8 md:px-8">
       <Sidebar userEmail={data.email} userName={data.username} storeName={data.storeName} wallet_address={data.wallet_address} network={data.network} />
       <section className="mx-auto max-w-7xl pt-8 md:pl-72">
-        <Categories email={data.email} />
+        <Categories email={data.email} network={data.network} />
       </section>
     </main>
   );

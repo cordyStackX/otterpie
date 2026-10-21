@@ -9,7 +9,11 @@ export async function PATCH(params: NextRequest) {
   }
 
   try {
-    const { email, category } = await params.json();
+    const { email, category, asset } = await params.json();
+    if (asset !== undefined && asset !== "BOT" && asset !== "PIE" && asset !== "XLM") {
+      return NextResponse.json({ success: false, error: "Choose BOT, PIE, or XLM categories." }, { status: 400 });
+    }
+    const categoryColumn = asset === "PIE" ? "category_pie" : "category";
 
     if (typeof email !== "string" || !email || !Array.isArray(category)) {
       return NextResponse.json({ success: false, error: "Invalid Request" }, { status: 400 });
@@ -55,7 +59,7 @@ export async function PATCH(params: NextRequest) {
 
     const { data, error } = await supabaseServer
       .from("categories")
-      .update({ category: category })
+      .update({ [categoryColumn]: category })
       .eq("email", email)
       .select("email")
       .maybeSingle();
@@ -68,7 +72,7 @@ export async function PATCH(params: NextRequest) {
     if (!data) {
       const { error: insertError } = await supabaseServer
         .from("categories")
-        .insert({ email, category });
+        .insert({ email, [categoryColumn]: category });
 
       if (insertError) {
         console.error("Supabase Insert Error: ", insertError);
