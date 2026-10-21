@@ -71,15 +71,14 @@ const card = "rounded-xl border border-foreground/10 bg-background p-5";
 const skeletonClass = "animate-pulse motion-reduce:animate-none rounded-md bg-foreground/10";
 
 // ---------------------------------------------------------------------------
-// Category allocation: each category takes a percentage of everything the
-// wallet has received, until it reaches its goal. After that it stops growing.
+// Each successful incoming payment contributes its own percentage to every
+// category. Contributions accumulate until an optional goal is reached.
 //
-//   share     = totalReceived × percent ÷ 100
-//   allocated = min(share, goal)            (goal = 0 means "no goal")
+//   contribution = payment.amount × percent ÷ 100
+//   allocated    = min(previous + contribution, goal) (goal = 0 means no cap)
 //   available = allocated − withdrawn       (never below 0)
 //
-// Example: 20% Savings, goal 2000. Received 5000 → 1000. Received 15000 → 2000.
-// Received 0 → every category is 0.
+// Example: two 1 BOT payments, 40% Savings → 0.4 + 0.4 = 0.8 BOT.
 // ---------------------------------------------------------------------------
 type CategoryRule = {
   id: string; // unique per category (crypto.randomUUID() when created)
@@ -102,14 +101,17 @@ const round7 = (n: number) => Math.round(n * 1e7) / 1e7;
 
 function allocate(
   rules: CategoryRule[],
-  totalReceived: number,
+  incoming: Incoming[],
   withdrawn: Record<string, number> = {}
 ): { categories: CategoryBalance[]; unallocated: number } {
-  const received = Math.max(totalReceived, 0);
+  const successfulIncoming = incoming.filter((tx) => tx.amount > 0);
+  const received = successfulIncoming.reduce((sum, tx) => sum + tx.amount, 0);
 
   const categories = rules.map((r) => {
-    const share = (received * r.percent) / 100;
-    const allocated = round7(r.goal > 0 ? Math.min(share, r.goal) : share);
+    const allocated = successfulIncoming.reduce((sum, tx) => {
+      const contribution = round7((tx.amount * r.percent) / 100);
+      return round7(r.goal > 0 ? Math.min(sum + contribution, r.goal) : sum + contribution);
+    }, 0);
     const taken = withdrawn[r.id] ?? 0;
 
     return {
@@ -128,10 +130,6 @@ function allocate(
   return { categories, unallocated };
 }
 
-// Percentages across all categories should not go over 100
-// const totalPercent = (rules: CategoryRule[]) =>
-//   rules.reduce((sum, r) => sum + r.percent, 0);
-
 // Each category stores its own icon path; this is the fallback if it is missing.
 const DEFAULT_OTTER = "/icons/otters/otter-default.svg";
 
@@ -149,6 +147,7 @@ type Slice = { name: string; amount: number; color?: string };
 
 // Sales = money received by the wallet (incoming payments), in the network's coin
 type Incoming = {
+  id: string;
   date: string;
   amount: number;
   direction?: "received" | "sent";
@@ -159,6 +158,7 @@ type Incoming = {
 // network's own coin so the chart is in one unit.
 const toIncoming = (
   txs: {
+    id: string;
     date: string;
     amount: string;
     asset: string;
@@ -169,7 +169,7 @@ const toIncoming = (
 ): Incoming[] =>
   txs
     .filter((t) => t.asset === symbol && t.direction !== "sent" && t.status !== "Failed")
-    .map((t) => ({ date: t.date, amount: parseFloat(t.amount), direction: t.direction, status: t.status }))
+    .map((t) => ({ id: t.id, date: t.date, amount: parseFloat(t.amount), direction: t.direction, status: t.status }))
     .filter((t) => Number.isFinite(t.amount));
 
 // Groups incoming payments into 7 daily or 12 monthly buckets (local time)
@@ -503,13 +503,15 @@ function WithdrawDialog({
 export default function Dashboard({ email, network }: DashboardProps) {
   const [range, setRange] = useState<Range>("7d");
 
-  // percent = share of incoming funds, goal = stop receiving once reached (0 = no goal)
+  // Each successful incoming payment contributes its percentage to each category.
   const [rules, setRules] = useState<CategoryRule[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [page, setPage] = useState(1);
   const [pageInfo, setPageInfo] = useState({ total: 0, totalPages: 1, totalPercent: 0 });
   const [withdrawn, setWithdrawn] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<Category | null>(null);
+  const [incoming, setIncoming] = useState<Incoming[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // Wallet balance (pie chart), formatted by the active network's ticker
   const [walletData, setWalletData] = useState<Slice[]>([]);
@@ -517,26 +519,18 @@ export default function Dashboard({ email, network }: DashboardProps) {
   const [loadingSales, setLoadingSales] = useState(true);
   const formatAmount = useMemo(() => makeFormatter(network), [network]);
 
-  const walletTotal = walletData.reduce((sum, d) => sum + d.amount, 0);
   const nativeSymbol = NETWORK_SYMBOL[network];
   const nativeBalance = walletData.find((slice) => slice.name === nativeSymbol)?.amount ?? 0;
-  const isEmptyWallet = !loadingBalance && walletTotal === 0;
+  const isEmptyWallet = !loadingBalance && nativeBalance === 0;
 
-  // Everything the wallet has received = current balance + what was already withdrawn.
-  // (Refetch the balance after a real withdrawal so this stays correct.)
-  const withdrawnTotal = Object.values(withdrawn).reduce((s, v) => s + v, 0);
-  const { categories } = allocate(
-    rules,
-    walletTotal + withdrawnTotal,
-    withdrawn
-  );
+  const { categories } = allocate(rules, incoming, withdrawn);
 
   // Show how the current wallet balance is divided across categories. Any funds
   // outside category allocations get their own slice. Scale allocations down if
   // they briefly exceed the live balance (for example, immediately after a send).
   const categoryTotal = categories.reduce((sum, category) => sum + category.available, 0);
-  const categoryScale = categoryTotal > walletTotal && categoryTotal > 0
-    ? walletTotal / categoryTotal
+  const categoryScale = categoryTotal > nativeBalance && categoryTotal > 0
+    ? nativeBalance / categoryTotal
     : 1;
   const categorySlices = categories
     .map((category) => ({
@@ -546,16 +540,13 @@ export default function Dashboard({ email, network }: DashboardProps) {
     }))
     .filter((slice) => slice.amount > 0);
   const categorizedTotal = categorySlices.reduce((sum, slice) => sum + slice.amount, 0);
-  const unassignedAmount = round7(Math.max(walletTotal - categorizedTotal, 0));
-  const pieData: Slice[] = isEmptyWallet
+  const unassignedAmount = round7(Math.max(nativeBalance - categorizedTotal, 0));
+  const pieData: Slice[] = nativeBalance === 0
     ? [{ name: "Empty", amount: 1 }]
     : [
         ...categorySlices,
         ...(unassignedAmount > 0 ? [{ name: "Unassigned", amount: unassignedAmount }] : []),
       ];
-
-  const [incoming, setIncoming] = useState<Incoming[]>([]);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const activeRange = ranges.find((r) => r.key === range)!;
   const salesData = useMemo(() => buildSales(incoming, range), [incoming, range]);
@@ -599,11 +590,13 @@ export default function Dashboard({ email, network }: DashboardProps) {
     };
   }, [email, page]);
 
-  // Wallet balance + sales: load once, then refresh every 30 seconds
+  // Wallet balance + transaction history: load once, then refresh every 30 seconds.
+  // The full transaction history is needed to build category allocations accurately.
   useEffect(() => {
     let cancelled = false;
     let inFlight = false;
     let firstLoad = true;
+    let historyComplete = false;
 
     // Start clean so data from a previous account/network never lingers
     setWalletData([]);
@@ -637,6 +630,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
       // null = that request failed, so keep whatever is already on screen
       let slices: Slice[] | null = null;
       let incomingTx: Incoming[] | null = null;
+      const loadFullHistory = !historyComplete;
 
       if (config) {
         try {
@@ -648,9 +642,33 @@ export default function Dashboard({ email, network }: DashboardProps) {
 
         // Separate try so a transactions failure never wipes out the balance
         try {
-          const txResponse = await Fetch_to("POST", config.transactions, { email });
+          let txResponse = await Fetch_to("POST", config.transactions, { email });
           if (txResponse.success) {
-            incomingTx = toIncoming(txResponse.data.transactions, config.symbol);
+            const txs = [...txResponse.data.transactions];
+            let cursor: string | null = txResponse.data.nextCursor ?? null;
+            let complete = true;
+            const seenCursors = new Set<string>();
+
+            while (loadFullHistory && cursor) {
+              if (seenCursors.has(cursor)) {
+                complete = false;
+                break;
+              }
+              seenCursors.add(cursor);
+              txResponse = await Fetch_to("POST", config.transactions, { email, cursor });
+              if (!txResponse.success) {
+                complete = false;
+                break;
+              }
+              txs.push(...txResponse.data.transactions);
+              cursor = txResponse.data.nextCursor ?? null;
+              if (txResponse.data.hasMore && !cursor) {
+                complete = false;
+                break;
+              }
+            }
+
+            if (complete) incomingTx = toIncoming(txs, config.symbol);
           }
         } catch {
           // Keep the previous sales history
@@ -661,7 +679,15 @@ export default function Dashboard({ email, network }: DashboardProps) {
       if (cancelled) return;
 
       if (slices) setWalletData(slices);
-      if (incomingTx) setIncoming(incomingTx);
+      if (incomingTx) {
+        if (loadFullHistory) historyComplete = true;
+        setIncoming((current) => {
+          if (loadFullHistory) return incomingTx!;
+          const merged = new Map(current.map((tx) => [tx.id, tx]));
+          for (const tx of incomingTx!) merged.set(tx.id, tx);
+          return Array.from(merged.values());
+        });
+      }
       if (slices || incomingTx) setLastUpdated(new Date());
 
       if (firstLoad) {
@@ -764,9 +790,9 @@ export default function Dashboard({ email, network }: DashboardProps) {
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <p className="text-xs text-foreground/50">Total balance</p>
+                  <p className="text-xs text-foreground/50">Native balance</p>
                   <p className="max-w-[62%] break-words text-center text-sm font-semibold leading-tight tabular-nums tracking-tight text-foreground sm:text-base">
-                    {formatAmount(walletTotal)}
+                    {formatAmount(nativeBalance)}
                   </p>
                 </div>
               </div>

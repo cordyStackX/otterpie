@@ -134,25 +134,25 @@ export default function Categories({ email }: CategoriesProps) {
     event.preventDefault();
     const cleanName = name.trim();
     const amount = Number(goal || 0);
-    const deduction = Number(percent);
+    const share = Number(percent);
 
     if (!cleanName) {
       setFormError("Enter a category name.");
       return;
     }
-    if (!Number.isFinite(amount) || amount < 0) {
-      setFormError("Enter a valid goal amount.");
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setFormError("Enter a goal amount greater than zero.");
       return;
     }
-    if (!Number.isFinite(deduction) || deduction <= 0 || deduction > formAvailablePercent) {
-      setFormError(`Choose a deduction from 1% to ${formAvailablePercent}%.`);
+    if (!Number.isFinite(share) || share <= 0 || share > formAvailablePercent) {
+      setFormError(`Choose a share from 1% to ${formAvailablePercent}%.`);
       return;
     }
 
     const updated: Category = {
       id: editingCategoryId ?? crypto.randomUUID(),
       name: cleanName,
-      percent: deduction,
+      percent: share,
       goal: amount,
       icons: icon,
       color,
@@ -203,7 +203,7 @@ export default function Categories({ email }: CategoriesProps) {
           <p className="text-sm font-medium text-primary">Wallet planning</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Categories</h1>
           <p className="mt-1 text-sm text-foreground/55">
-            Choose how incoming funds are divided between your goals.
+            Set the share each incoming payment adds to your categories.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -260,6 +260,13 @@ export default function Categories({ email }: CategoriesProps) {
         </div>
       </header>
 
+      <aside className="rounded-xl border border-primary/15 bg-primary/[0.05] px-4 py-3.5 text-sm leading-6 text-foreground/65">
+        <p className="font-semibold text-foreground">How category shares work</p>
+        <p className="mt-1">
+          Each successful incoming payment adds its percentage to a category. For example, two 1-unit payments at 40% add 0.4 + 0.4 = 0.8 units. Contributions build toward the category goal, which stops further allocation when reached. This tracks amounts in your wallet; it does not move funds into separate on-chain wallets.
+        </p>
+      </aside>
+
       {actionError && (
         <p role="alert" className="rounded-lg border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-sm text-rose-600">
           {actionError}
@@ -294,7 +301,7 @@ export default function Categories({ email }: CategoriesProps) {
         <div className="flex items-center justify-between border-b border-foreground/10 px-5 py-4">
           <div>
             <h2 id="categories-list-title" className="text-sm font-semibold">Your categories</h2>
-            <p className="mt-1 text-xs text-foreground/50">Deductions apply to incoming wallet funds.</p>
+            <p className="mt-1 text-xs text-foreground/50">Each percentage is applied to every successful incoming payment.</p>
           </div>
           <span className="rounded-full bg-foreground/5 px-2.5 py-1 text-xs tabular-nums text-foreground/60">
             {loading ? <span aria-hidden="true" className={`inline-block h-3 w-5 align-middle ${skeletonClass}`} /> : categories.length}
@@ -373,7 +380,9 @@ export default function Categories({ email }: CategoriesProps) {
                             <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: category.color || DEFAULT_COLOR }} />
                             <span className="truncate">{category.name}</span>
                           </h3>
-                          <p className="mt-0.5 text-xs text-foreground/50">{category.goal > 0 ? `Goal ${formatAmount(category.goal)}` : "No goal set"}</p>
+                          <p className={`mt-0.5 text-xs ${category.goal > 0 ? "font-semibold text-primary" : "text-amber-600"}`}>
+                            {category.goal > 0 ? `Target ${formatAmount(category.goal)}` : "Goal not set"}
+                          </p>
                         </div>
                       </div>
                       <span
@@ -391,7 +400,7 @@ export default function Categories({ email }: CategoriesProps) {
                     <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-foreground/8">
                       <div className="h-full rounded-full" style={{ width: `${category.percent}%`, backgroundColor: category.color || DEFAULT_COLOR }} />
                     </div>
-                    <p className="mt-2 text-xs text-foreground/45">of every incoming payment</p>
+                    <p className="mt-2 text-xs text-foreground/45">of each incoming payment</p>
                   </div>
                   {editing && (
                     <div className="flex justify-end">
@@ -456,7 +465,7 @@ export default function Categories({ email }: CategoriesProps) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 id="add-category-title" className="text-lg font-semibold">{editingCategoryId ? "Edit category" : "Add category"}</h2>
-                <p className="mt-1 text-sm text-foreground/55">Set an icon, goal, and share of incoming funds.</p>
+                <p className="mt-1 text-sm text-foreground/55">Choose a goal first. Each incoming payment adds its share toward that target.</p>
               </div>
               <button
                 type="button"
@@ -519,22 +528,29 @@ export default function Categories({ email }: CategoriesProps) {
                 />
               </label>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="block text-sm font-medium" htmlFor="category-goal">
-                  Goal amount <span className="font-normal text-foreground/45">(optional)</span>
+              <div className="rounded-xl border border-primary/25 bg-primary/[0.05] p-4">
+                <label className="block text-sm font-semibold" htmlFor="category-goal">
+                  Category goal <span className="text-rose-600">*</span>
                   <input
                     id="category-goal"
                     type="number"
-                    min="0"
+                    min="0.0000001"
                     step="any"
+                    required
                     value={goal}
                     onChange={(event) => setGoal(event.target.value)}
-                    placeholder="No limit"
+                    placeholder="Enter your target amount"
                     className="mt-1.5 w-full rounded-lg border border-foreground/15 bg-background px-3 py-2.5 text-sm font-normal outline-none placeholder:text-foreground/35 focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
                   />
+                  <span className="mt-1.5 block text-xs font-normal leading-5 text-foreground/55">
+                    Incoming payment shares build toward this amount. Once reached, this category stops receiving allocations.
+                  </span>
                 </label>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
                 <label className="block text-sm font-medium" htmlFor="category-percent">
-                  Deduction percentage
+                  Share of each payment
                   <div className="relative mt-1.5">
                     <input
                       id="category-percent"
@@ -551,7 +567,7 @@ export default function Categories({ email }: CategoriesProps) {
                     <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-foreground/45">%</span>
                   </div>
                   <span className="mt-1 block text-xs font-normal text-foreground/45">
-                    Up to {formAvailablePercent}% available · allocations are capped at 100%
+                    Up to {formAvailablePercent}% available · category shares can total up to 100%
                   </span>
                 </label>
               </div>

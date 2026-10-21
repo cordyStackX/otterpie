@@ -16,7 +16,6 @@ const EXPLORER_API_URL =
 const EXPLORER_PAGE_SIZE = 50;
 const MAX_EXPLORER_PAGES = 5; // cap work per request while searching for 10 transfers
 const TRANSACTION_PAGE_SIZE = 10;
-const HISTORY_MONTHS = 12;
 
 type Incoming = {
   id: string;
@@ -72,8 +71,6 @@ export async function POST(params: NextRequest) {
   }
 
   try {
-    const cutoff = new Date();
-    cutoff.setMonth(cutoff.getMonth() - HISTORY_MONTHS);
     const me = address.toLowerCase();
     const transactions: Incoming[] = [];
     const parsedCursor = typeof cursor === "string" && /^\d+:\d+$/.test(cursor)
@@ -88,7 +85,6 @@ export async function POST(params: NextRequest) {
     let startIndex = cursorIndex;
     let nextCursor: string | null = null;
     let hasMore = false;
-    let reachedCutoff = false;
 
     for (let requestIndex = 0; requestIndex < MAX_EXPLORER_PAGES; requestIndex++) {
       const url = new URL(EXPLORER_API_URL);
@@ -125,10 +121,6 @@ export async function POST(params: NextRequest) {
       for (let index = startIndex; index < list.length; index++) {
         const t = list[index];
         const date = new Date(Number(t.timeStamp) * 1000);
-        if (date < cutoff) {
-          reachedCutoff = true;
-          break;
-        }
         const received = t.to?.toLowerCase() === me;
         const sent = t.from?.toLowerCase() === me;
         const succeeded = t.isError === undefined || t.isError === "0";
@@ -161,11 +153,6 @@ export async function POST(params: NextRequest) {
       }
 
       if (transactions.length >= TRANSACTION_PAGE_SIZE) break;
-      if (reachedCutoff) {
-        nextCursor = null;
-        hasMore = false;
-        break;
-      }
       if (list.length < EXPLORER_PAGE_SIZE) {
         nextCursor = null;
         hasMore = false;
