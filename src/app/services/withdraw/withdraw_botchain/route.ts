@@ -16,18 +16,20 @@ const provider = new JsonRpcProvider(
 
 export async function POST(request: NextRequest) {
   const auth = await Security(request);
-  if (auth.error !== false) {
-    return auth.error instanceof NextResponse
-      ? auth.error
-      : NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  if (auth?.error) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const limit = rateLimit(request, { windowMs: 60_000, max: 3, keyPrefix: "withdraw-botchain" });
-  if (!limit.allowed) {
-    return NextResponse.json({ success: false, error: "Too many withdrawal attempts. Try again in a minute." }, { status: 429 });
+  const rate = rateLimit(request, { windowMs: 60_000, max: 5, keyPrefix: "Show_wallet_secrets" });
+  if (!rate.allowed) {
+    const retryAfterSeconds = Math.ceil((rate.resetAt - Date.now()) / 1000);
+    return NextResponse.json(
+      { success: false, error: "Too many requests. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
+    );
   }
 
-  let body: { address?: unknown; amount?: unknown; withdrawAll?: unknown; password?: unknown };
+  let body: { email: string; address?: unknown; amount?: unknown; withdrawAll?: unknown; password?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -50,7 +52,7 @@ export async function POST(request: NextRequest) {
   const { data: account, error: accountError } = await supabaseServer
     .from("tbl_auth")
     .select("password")
-    .eq("email", auth.email)
+    .eq("email", body.email)
     .maybeSingle();
   if (accountError) {
     return NextResponse.json({ success: false, error: "Could not verify your password." }, { status: 500 });
@@ -62,7 +64,7 @@ export async function POST(request: NextRequest) {
   const { data: walletRecord, error: walletError } = await supabaseServer
     .from("tbl_wallet")
     .select("wallet_address, secret_key, network")
-    .eq("email", auth.email)
+    .eq("email", body.email)
     .eq("network", "bot_chain")
     .maybeSingle();
 

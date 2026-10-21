@@ -225,6 +225,7 @@ function shortAddress(address: string) {
 function WithdrawDialog({
   category,
   network,
+  email,
   withdrawAll = false,
   formatAmount,
   onClose,
@@ -232,6 +233,7 @@ function WithdrawDialog({
 }: {
   category: Category;
   network: string;
+  email: string;
   withdrawAll?: boolean;
   formatAmount: FormatAmount;
   onClose: () => void;
@@ -282,6 +284,7 @@ function WithdrawDialog({
         amount: amount.trim(),
         withdrawAll,
         password,
+        email,
       });
       if (!response.success) throw new Error(response.message || "The transfer could not be submitted.");
       const result = response.data as { txHash?: string; amount?: string };
@@ -995,6 +998,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
           key={selected.id}
           category={selected}
           formatAmount={formatAmount}
+          email={email}
           onClose={() => setSelected(null)}
           network={network}
           withdrawAll={selected.id === "__all__"}
