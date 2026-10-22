@@ -28,6 +28,7 @@ type TransactionProps = {
 
 type Filter = "All" | "Withdraw" | "Receive" | "Swap" | "Bridge";
 type TransactionCursors = Record<string, string | null>;
+const EMPTY_TRANSACTION_ASSETS: string[] = [];
 const emptyCursors = (assets: string[] = []): TransactionCursors =>
   Object.fromEntries(assets.map((asset) => [asset, null]));
 const filters: Filter[] = ["All", "Withdraw", "Receive", "Swap", "Bridge"];
@@ -48,7 +49,7 @@ const explorerName = (network: string) =>
 
 export default function Transactions({ email, network } : TransactionProps) {
   const networkConfig = getWalletNetworkConfig(network);
-  const transactionAssets = networkConfig?.transactionAssets ?? [];
+  const transactionAssets = networkConfig?.transactionAssets ?? EMPTY_TRANSACTION_ASSETS;
   const availableFilters = networkConfig?.family === "bot_chain"
     ? filters
     : filters.filter((item) => item !== "Bridge");

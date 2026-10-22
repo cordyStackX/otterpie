@@ -42,10 +42,6 @@ Bridge completion can take time and depends on the bridge contracts, validators,
 | BNB Smart Chain | Mainnet (Chain ID `56`) | External EVM wallet for USDT bridging |
 | Tron | Mainnet | External TronLink wallet for USDT bridging |
 
-## Why not just use GCash?
-
-Otterpie helps users understand wallet activity, not just receive payments. It lets them review transactions and organize balances into **their own categories** — trading, savings, rent, bills, or whatever fits their plans — so they can see how money is moving and what they have set aside.
-
 ---
 
 ## Tech stack

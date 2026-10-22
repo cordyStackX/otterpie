@@ -2,7 +2,7 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Fetch_to } from "@/utilities";
 import { isBotChainNetwork, walletNetworkLabel } from "@/utilities/network";
 import routes from "@/routes/jwt.json";
@@ -116,6 +116,7 @@ export default function Sidebar({
   onLogout,
 }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -179,7 +180,7 @@ export default function Sidebar({
     setIsConfirmOpen(false);
     const response = await Fetch_to("GET", routes.deauth);
     if (response.success) {
-      window.location.reload();
+      router.replace("/auth/login");
     }
     onLogout?.();
   };
@@ -305,7 +306,7 @@ export default function Sidebar({
       context.textAlign = "center";
       context.fillStyle = primaryColor;
       context.font = "650 32px system-ui, sans-serif";
-      context.fillText("Scan to pay", 540, 1170);
+      context.fillText("Scan to deposit", 540, 1170);
       context.fillStyle = primaryColor;
       context.font = "400 23px system-ui, sans-serif";
       context.fillText(isBotChainNetwork(network) ? `${walletNetworkLabel(network)} · EVM wallet` : "Stellar wallet", 540, 1212);
@@ -316,7 +317,7 @@ export default function Sidebar({
       const imageUrl = URL.createObjectURL(imageBlob);
       const link = document.createElement("a");
       link.href = imageUrl;
-      link.download = "otterpie-payment-qr.png";
+      link.download = "otterpie-deposit-qr.png";
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(imageUrl), 1000);
     } catch {
@@ -510,7 +511,7 @@ export default function Sidebar({
                 </div>
               </section>
 
-              <section aria-label="Wallet address and payment QR code" className="rounded-xl border border-foreground/10 p-4 sm:p-5">
+              <section aria-label="Wallet address and deposit QR code" className="rounded-xl border border-foreground/10 p-4 sm:p-5">
                 <p className="text-xs font-medium text-foreground/45">Wallet address</p>
                 <p className="mt-1 break-all font-mono text-xs leading-relaxed text-foreground/80">
                   {wallet_address || "Not available"}
@@ -553,7 +554,7 @@ export default function Sidebar({
                 </div>
 
                 <div className="mt-5 border-t border-foreground/10 pt-5 text-center">
-                  <p className="text-sm font-semibold">Scan to pay or deposit to this wallet</p>
+                  <p className="text-sm font-semibold">Scan to deposit to this wallet</p>
                   <p className="mt-1 text-xs text-foreground/50">
                     {isBotChainNetwork(network)
                       ? `EVM wallet · ${walletNetworkLabel(network)} · Chain ID 677`

@@ -1,6 +1,6 @@
 {
-    "title" : "Otterpie — One scan, every fund in its place.",
-    "description" : "A clearer way for small stores to organize wallet payments, track transactions, and plan category shares across supported blockchain networks.",
+    "title" : "Otterpie — A wallet that shows where the money goes.",
+    "description" : "Otterpie helps you track wallet balances and transactions, organize funds into custom categories, and manage activity across Stellar and BOT Chain. BOT Chain also supports swaps and USDT bridging.",
     "domain__links": "https://otterpie.vercel.app/",
     "openGraph": "https://otterpie.vercel.app/og-image.png",
     "openGraphSvg": "https://otterpie.vercel.app/og-image.svg",
