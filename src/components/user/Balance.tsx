@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Fetch_to } from "@/utilities";
 import { getWalletNetworkConfig, walletAssetLabel, walletNetworkLabel } from "@/utilities/network";
 
@@ -21,6 +21,14 @@ export default function Balance({ email, network }: BalanceProps) {
   const [error, setError] = useState("");
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const config = getWalletNetworkConfig(network);
+  const requestKey = `${network}:${email}`;
+  const activeRequestKey = useRef(requestKey);
+  const [loadedKey, setLoadedKey] = useState("");
+  const showSkeleton = Boolean(email && config?.routes.balance && (loading || loadedKey !== requestKey));
+
+  useEffect(() => {
+    activeRequestKey.current = requestKey;
+  }, [requestKey]);
 
   const orderedBalances = useMemo(() => {
     const assets = config?.transactionAssets ?? [];
@@ -47,15 +55,21 @@ export default function Balance({ email, network }: BalanceProps) {
       if (!response.success) throw new Error(response.message || "Could not load wallet balances.");
       const data = response.data as { balances?: WalletBalance[] };
       if (!Array.isArray(data?.balances)) throw new Error("The balance service returned an invalid response.");
+      if (activeRequestKey.current !== requestKey) return;
       setBalances(data.balances.filter((item) => typeof item.asset === "string" && typeof item.balance === "string"));
       setUpdatedAt(new Date());
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Could not load wallet balances.");
+      if (activeRequestKey.current === requestKey) {
+        setError(loadError instanceof Error ? loadError.message : "Could not load wallet balances.");
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (activeRequestKey.current === requestKey) {
+        setLoading(false);
+        setRefreshing(false);
+        setLoadedKey(requestKey);
+      }
     }
-  }, [config, email]);
+  }, [config, email, requestKey]);
 
   useEffect(() => {
     void loadBalances(true);
@@ -81,7 +95,7 @@ export default function Balance({ email, network }: BalanceProps) {
         <button
           type="button"
           onClick={() => void loadBalances(false)}
-          disabled={loading || refreshing || !email || !config?.routes.balance}
+          disabled={showSkeleton || refreshing || !email || !config?.routes.balance}
           className="rounded-md border border-foreground/15 px-3 py-2 text-sm font-medium text-foreground/75 outline-none transition-colors hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {refreshing ? "Refreshing…" : "Refresh balances"}
@@ -103,10 +117,19 @@ export default function Balance({ email, network }: BalanceProps) {
         </div>
       )}
 
-      {loading ? (
+      {showSkeleton ? (
         <div role="status" aria-label="Loading wallet balances" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2].map((item) => (
-            <div key={item} aria-hidden="true" className="h-32 animate-pulse rounded-xl border border-foreground/10 bg-foreground/[0.03]" />
+            <div key={item} aria-hidden="true" className="animate-pulse rounded-xl border border-foreground/10 bg-background p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-2">
+                  <div className="h-4 w-16 rounded bg-foreground/10" />
+                  <div className="h-3 w-28 rounded bg-foreground/[0.07]" />
+                </div>
+                <div className="h-9 w-9 rounded-full bg-foreground/[0.07]" />
+              </div>
+              <div className="mt-7 h-7 w-40 max-w-full rounded bg-foreground/10" />
+            </div>
           ))}
           <span className="sr-only">Loading wallet balances…</span>
         </div>

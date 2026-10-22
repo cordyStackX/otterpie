@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BrowserProvider, Contract, getAddress, isAddress, parseUnits } from "ethers";
 import { Fetch_to } from "@/utilities";
 import routes from "@/routes/user.json";
@@ -290,11 +290,16 @@ export default function Bridge({ network, walletAddress }: BridgeProps) {
   const [quote, setQuote] = useState<BridgeQuote | null>(null);
   const [botUsdtBalance, setBotUsdtBalance] = useState<string | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(true);
+  const [loadedBalanceKey, setLoadedBalanceKey] = useState("");
   const [busy, setBusy] = useState<"quote" | "bridge" | null>(null);
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState<{ txHash: string; approvalHash?: string; message: string } | null>(null);
   const walletConfig = getWalletNetworkConfig(network);
   const supportsEvmBridge = walletConfig?.walletType === "evm";
+  const balanceRequestKey = `${network}:${walletAddress}`;
+  const activeBalanceKey = useRef(balanceRequestKey);
+  const showBridgeSkeleton = supportsEvmBridge && direction === "outbound"
+    && (balanceLoading || loadedBalanceKey !== balanceRequestKey);
   const selectedDestination = botChainBridge.networks[destination];
   const addressPlaceholder = selectedDestination.outbound.addressType === "tron" ? "T... or 0x... (Tron recipient)" : "0x... (recipient wallet address)";
   const refreshBotUsdtBalance = useCallback(async () => {
@@ -304,17 +309,24 @@ export default function Bridge({ network, walletAddress }: BridgeProps) {
       if (!response.success) throw new Error(response.message || "Could not load balance.");
       const result = response.data as { balance?: string };
       if (typeof result.balance !== "string") throw new Error("Invalid balance response.");
-      setBotUsdtBalance(result.balance);
+      if (activeBalanceKey.current === balanceRequestKey) setBotUsdtBalance(result.balance);
     } catch {
-      setBotUsdtBalance(null);
+      if (activeBalanceKey.current === balanceRequestKey) setBotUsdtBalance(null);
     } finally {
-      setBalanceLoading(false);
+      if (activeBalanceKey.current === balanceRequestKey) {
+        setBalanceLoading(false);
+        setLoadedBalanceKey(balanceRequestKey);
+      }
     }
-  }, []);
+  }, [balanceRequestKey]);
 
   useEffect(() => {
-    if (direction === "outbound") void refreshBotUsdtBalance();
-  }, [direction, refreshBotUsdtBalance]);
+    activeBalanceKey.current = balanceRequestKey;
+  }, [balanceRequestKey]);
+
+  useEffect(() => {
+    if (supportsEvmBridge && direction === "outbound") void refreshBotUsdtBalance();
+  }, [direction, refreshBotUsdtBalance, supportsEvmBridge]);
 
   const clearQuote = () => {
     setQuote(null);
@@ -381,12 +393,14 @@ export default function Bridge({ network, walletAddress }: BridgeProps) {
         <span className="rounded-full border border-primary/20 bg-primary/[0.06] px-3 py-1.5 text-xs font-medium text-primary">USDT · Mainnet</span>
       </header>
 
-      <div role="group" aria-label="Bridge direction" className="grid grid-cols-1 gap-1 rounded-xl border border-foreground/10 bg-foreground/[0.02] p-1 sm:grid-cols-2">
-        <button type="button" onClick={() => { setDirection("outbound"); clearQuote(); }} aria-pressed={direction === "outbound"} disabled={inboundBusy || busy !== null} className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50 ${direction === "outbound" ? "bg-primary text-white shadow-sm" : "text-foreground/60 hover:bg-foreground/[0.04] hover:text-foreground"}`}><span>BOT Chain</span><DirectionArrow /><span>Other network</span></button>
-        <button type="button" onClick={() => { setDirection("inbound"); clearQuote(); }} aria-pressed={direction === "inbound"} disabled={inboundBusy || busy !== null} className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50 ${direction === "inbound" ? "bg-primary text-white shadow-sm" : "text-foreground/60 hover:bg-foreground/[0.04] hover:text-foreground"}`}><span>Other network</span><DirectionArrow /><span>BOT Chain</span></button>
-      </div>
+      {supportsEvmBridge && (
+        <div role="group" aria-label="Bridge direction" className="grid grid-cols-1 gap-1 rounded-xl border border-foreground/10 bg-foreground/[0.02] p-1 sm:grid-cols-2">
+          <button type="button" onClick={() => { setDirection("outbound"); clearQuote(); }} aria-pressed={direction === "outbound"} disabled={inboundBusy || busy !== null} className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50 ${direction === "outbound" ? "bg-primary text-white shadow-sm" : "text-foreground/60 hover:bg-foreground/[0.04] hover:text-foreground"}`}><span>BOT Chain</span><DirectionArrow /><span>Other network</span></button>
+          <button type="button" onClick={() => { setDirection("inbound"); clearQuote(); }} aria-pressed={direction === "inbound"} disabled={inboundBusy || busy !== null} className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50 ${direction === "inbound" ? "bg-primary text-white shadow-sm" : "text-foreground/60 hover:bg-foreground/[0.04] hover:text-foreground"}`}><span>Other network</span><DirectionArrow /><span>BOT Chain</span></button>
+        </div>
+      )}
 
-      {direction === "inbound" ? <InboundBridge onBusyChange={setInboundBusy} walletAddress={walletAddress} /> : !supportsEvmBridge ? (
+      {!supportsEvmBridge ? (
         <section role="status" className="rounded-xl border border-amber-400/25 bg-amber-400/5 p-5">
           <h2 className="text-base font-semibold text-amber-200">Bridging unavailable for this wallet</h2>
           {!network ? (
@@ -399,6 +413,25 @@ export default function Bridge({ network, walletAddress }: BridgeProps) {
               <p className="mt-3 text-xs text-foreground/50">Your Stellar wallet and XLM balance are not affected.</p>
             </>
           )}
+        </section>
+      ) : direction === "inbound" ? <InboundBridge onBusyChange={setInboundBusy} walletAddress={walletAddress} /> : showBridgeSkeleton ? (
+        <section role="status" aria-label="Loading bridge wallet balance" className="animate-pulse motion-reduce:animate-none rounded-2xl border border-foreground/10 bg-background p-4 sm:p-6 lg:p-7">
+          <span className="sr-only">Loading bridge form…</span>
+          <div aria-hidden="true" className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_2rem_minmax(0,1fr)] sm:items-end sm:gap-4">
+            <div className="space-y-2"><div className="h-3 w-12 rounded bg-foreground/[0.07]" /><div className="h-[72px] rounded-xl bg-foreground/[0.07]" /></div>
+            <div className="hidden h-5 rounded bg-foreground/[0.07] sm:block" />
+            <div className="space-y-2"><div className="h-3 w-8 rounded bg-foreground/[0.07]" /><div className="h-[72px] rounded-xl bg-foreground/[0.07]" /></div>
+          </div>
+          <div aria-hidden="true" className="mt-5 grid gap-4 md:grid-cols-2">
+            <div className="h-[68px] rounded-xl bg-foreground/[0.07]" />
+            <div className="h-[68px] rounded-xl bg-foreground/[0.07]" />
+          </div>
+          <div aria-hidden="true" className="mt-5 h-3 w-3/4 max-w-full rounded bg-foreground/[0.07]" />
+          <div aria-hidden="true" className="mt-5 h-12 rounded-xl bg-foreground/[0.07]" />
+          <div aria-hidden="true" className="mt-6 border-t border-foreground/10 pt-5">
+            <div className="h-4 w-36 rounded bg-foreground/[0.07]" />
+            <div className="mt-2 h-3 w-2/3 max-w-full rounded bg-foreground/[0.07]" />
+          </div>
         </section>
       ) : (
         <form onSubmit={submitBridge} className="min-w-0 rounded-2xl border border-foreground/10 bg-background p-4 shadow-xl shadow-black/5 sm:p-6 lg:p-7">
