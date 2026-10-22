@@ -19,7 +19,7 @@ export default function UserTransactionPage() {
 
       if (response.success) {
         const data = response.data.message.data;
-        setData(prev => ({ ...prev,
+        setData(prev => ({ ...prev, 
           email: data.email,
           network: data.network,
           username: data.username,
