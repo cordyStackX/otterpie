@@ -10,6 +10,7 @@ import routes from "@/routes/jwt.json";
 export default function UserBridgePage() {
   const router = useRouter();
   const [data, setData] = useState({ email: "", network: "", username: "", wallet_address: "" });
+  const [loadingSession, setLoadingSession] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -27,6 +28,7 @@ export default function UserBridgePage() {
           username: user.username,
           wallet_address: user.wallet_address,
         });
+        setLoadingSession(false);
       }
     };
     void verify();
@@ -37,7 +39,20 @@ export default function UserBridgePage() {
     <main className="min-h-screen bg-background px-4 py-8 md:px-8">
       <Sidebar userEmail={data.email} userName={data.username} wallet_address={data.wallet_address} network={data.network} />
       <section className="mx-auto max-w-7xl pt-8 md:pl-72">
-        <Bridge network={data.network} walletAddress={data.wallet_address} />
+        {loadingSession ? (
+          <div role="status" aria-label="Loading wallet session" className="mx-auto max-w-5xl space-y-6">
+            <span className="sr-only">Loading your wallet session…</span>
+            <div aria-hidden="true" className="animate-pulse motion-reduce:animate-none">
+              <div className="h-3 w-40 rounded bg-foreground/10" />
+              <div className="mt-3 h-8 w-32 rounded bg-foreground/10" />
+              <div className="mt-2 h-4 w-72 max-w-full rounded bg-foreground/[0.07]" />
+            </div>
+            <div aria-hidden="true" className="h-14 animate-pulse motion-reduce:animate-none rounded-xl border border-foreground/10 bg-foreground/[0.03]" />
+            <div aria-hidden="true" className="h-72 animate-pulse motion-reduce:animate-none rounded-2xl border border-foreground/10 bg-foreground/[0.03]" />
+          </div>
+        ) : (
+          <Bridge network={data.network} walletAddress={data.wallet_address} />
+        )}
       </section>
     </main>
   );
