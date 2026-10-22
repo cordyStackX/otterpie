@@ -1164,7 +1164,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
           key={swapDirection}
           initialDirection={swapDirection}
           allowDirectionSelect={!isPieSelected}
-          balance={nativeBalance}
+          balances={Object.fromEntries(walletData.map((slice) => [slice.name, slice.amount]))}
           email={email}
           onSwapped={async () => {
             const balanceRoute = getWalletNetworkConfig(network)?.routes.balance;
@@ -1185,13 +1185,13 @@ export default function Dashboard({ email, network }: DashboardProps) {
 function SwapPreviewDialog({
   initialDirection,
   allowDirectionSelect,
-  balance,
+  balances,
   onSwapped,
   onClose,
 }: {
   initialDirection: SwapDirection;
   allowDirectionSelect: boolean;
-  balance: number;
+  balances: Record<string, number>;
   email: string;
   onSwapped: () => Promise<void>;
   onClose: () => void;
@@ -1208,7 +1208,8 @@ function SwapPreviewDialog({
   const formatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 7 });
   const from = direction === "PIE_TO_BOT" ? "PIE" : direction === "USDT_TO_BOT" ? "USDT" : "BOT";
   const to = direction === "PIE_TO_BOT" || direction === "USDT_TO_BOT" ? "BOT" : direction === "BOT_TO_USDT" ? "USDT" : "PIE";
-  const canQuote = Number.isFinite(Number(amount)) && Number(amount) > 0 && (from !== "BOT" || Number(amount) <= balance);
+  const availableBalance = quote ? Number(quote.availableBalance) : balances[from] ?? 0;
+  const canQuote = Number.isFinite(Number(amount)) && Number(amount) > 0 && Number(amount) <= availableBalance;
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -1315,12 +1316,15 @@ function SwapPreviewDialog({
             </div>
           </fieldset>
         )}
-        <label htmlFor="swap-amount" className="mt-5 block text-sm font-medium">You pay ({from})</label>
+        <div className="mt-5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <label htmlFor="swap-amount" className="text-sm font-medium">You pay ({from})</label>
+          <span className="text-xs tabular-nums text-foreground/55">Balance: {formatter.format(availableBalance)} {from}</span>
+        </div>
         <input
           id="swap-amount"
           type="number"
           min="0"
-          max={from === "BOT" ? balance : undefined}
+          max={availableBalance}
           step="any"
           value={amount}
           onChange={(event) => { setAmount(event.target.value); setQuote(null); setError(""); }}
@@ -1328,13 +1332,6 @@ function SwapPreviewDialog({
           disabled={busy !== null || Boolean(txHash)}
           className="mt-1.5 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/25"
         />
-        <p className="mt-1 text-xs text-foreground/50">
-          {from === "BOT"
-            ? `Available: ${formatter.format(balance)} BOT`
-            : quote
-              ? `Available: ${formatter.format(Number(quote.availableBalance))} ${from}`
-              : `Your ${from} balance will be checked when you request a quote.`}
-        </p>
         <label htmlFor="swap-slippage" className="mt-4 block text-sm font-medium">Max slippage (%)</label>
         <input
           id="swap-slippage"
