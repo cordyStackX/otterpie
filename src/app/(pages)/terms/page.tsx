@@ -12,6 +12,7 @@ const sections: LegalSection[] = [
     paragraphs: [
       "Otterpie provides account, wallet, transaction-viewing, and payment-allocation tools. These terms apply when you access or use the service. If you do not agree, do not use Otterpie.",
       "You are responsible for providing accurate account details, keeping your password and devices secure, and all activity made through your account. Contact the service operator promptly if you believe your account has been accessed without permission.",
+      "Otterpie is in early alpha. Features may be incomplete, change without notice, be temporarily unavailable, or display delayed or inaccurate information. Use only amounts you can afford to lose, and verify transaction details independently before approving a mainnet transaction.",
     ],
   },
   {
@@ -19,6 +20,21 @@ const sections: LegalSection[] = [
     paragraphs: [
       "Otterpie creates a blockchain wallet for the network you select. The wallet’s private key is stored in encrypted form on the service’s server. The server can decrypt that key to support wallet functions and transfers you request. This means the wallet is not self-custodial while used through Otterpie; the service operator has technical access to the key.",
       "You are responsible for protecting your wallet credentials and for safely storing any private key you choose to reveal or export. Never share a private key with anyone you do not trust. Otterpie cannot recover assets sent to an incorrect address or on an incorrect network.",
+    ],
+  },
+  {
+    title: "External wallets and WalletConnect",
+    paragraphs: [
+      "The bridge can connect an external EVM wallet using WalletConnect, or a Tron wallet using TronLink, for transfers from Ethereum, BNB Smart Chain, or Tron to BOT Chain. Connecting a wallet shares the public address and connection or network information needed for the flow. A connection alone does not submit a transaction; you must review and approve transaction requests in your wallet.",
+      "WalletConnect, TronLink, and the wallet providers are independent services with their own terms, privacy practices, and availability. Otterpie does not receive the private keys for wallets connected through these providers. Review the network, token, amount, destination, and transaction details in your wallet before signing.",
+    ],
+  },
+  {
+    title: "Swaps and bridge transfers",
+    paragraphs: [
+      "The alpha supports BOT, PIE, and USDT swaps on BOT Chain, subject to available liquidity, contract behavior, and the quote shown in the app. Prices can move between quote and execution. Slippage, price impact, token behavior, low liquidity, or contract and network issues may cause a transaction to execute at a different result or fail; a failed transaction may still consume network fees.",
+      "The USDT bridge currently supports transfers between BOT Chain and Ethereum, BNB Smart Chain, and Tron. Stellar is not supported for bridging. Bridge transfers depend on the relevant contracts, validators, destination network, and third-party wallet providers; delivery can be delayed or fail, and Otterpie cannot guarantee a completion time or recover assets sent to an incorrect destination.",
+      "Bridge fees and minimums depend on direction and the live bridge rules. The current BOT Chain bridge documentation describes an outbound fee and a minimum transfer amount; the app may show a live quote that changes. Source-network gas or resource fees may also apply. Review the quote and official bridge details before confirming.",
     ],
   },
   {
@@ -63,7 +79,7 @@ export default function TermsPage() {
     <LegalDocument
       title="Terms of Service"
       summary="Please read these terms before using Otterpie to manage a wallet or submit a blockchain transaction."
-      updated="October 21, 2026"
+      updated="October 22, 2026"
       sections={sections}
       otherPage={{ href: "/privacy", label: "Privacy Policy" }}
     />

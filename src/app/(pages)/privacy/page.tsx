@@ -13,6 +13,8 @@ const sections: LegalSection[] = [
     bullets: [
       "Account details: username, email address, and a password hash. The app does not need to store your account password in readable form.",
       "Wallet details: selected network, public wallet address, and the wallet private key, which is encrypted before it is stored. The server can decrypt the key to provide wallet features and submit transfers you request.",
+      "Swap and bridge details: token, amount, source and destination networks, recipient address, quote or fee information, wallet connection metadata, and transaction identifiers needed to prepare, submit, and display supported transactions.",
+      "External wallet connection details: when you use WalletConnect or TronLink, the app handles the public wallet address, selected network, and transaction request or status information needed for the connection. Otterpie does not receive the private keys of those externally connected wallets.",
       "Category settings: category names, icons, colors, and allocation percentages.",
       "Transaction and balance information associated with your wallet addresses, retrieved from blockchain networks or their service providers.",
       "Service and device information such as request and security data, and analytics information collected through Google Analytics.",
@@ -25,6 +27,7 @@ const sections: LegalSection[] = [
       "Create and secure accounts, verify email addresses, and provide password-reset links.",
       "Display wallet balances, transaction history, category allocations, and profile details.",
       "Submit a transfer after you request and confirm it in the app.",
+      "Prepare and display swaps and bridge transfers, including quotes, selected networks, recipient details, and transaction status.",
       "Protect the service, investigate errors or misuse, and understand general site usage through analytics.",
       "Send service emails related to account confirmation and password resets.",
     ],
@@ -34,12 +37,14 @@ const sections: LegalSection[] = [
     paragraphs: [
       "Wallet addresses and confirmed blockchain transactions are public by design. Anyone may be able to view transactions associated with an address using public network tools. Blockchain records are maintained by the network, not by Otterpie, and we cannot remove or change a confirmed record.",
       "Wallet keys are encrypted in the database, but the Otterpie server can decrypt them to provide wallet features. Treat this as a service-operated wallet, not a self-custody wallet. Do not reveal a key unless you understand that anyone who obtains it may control the wallet.",
+      "For inbound USDT bridge transfers from Ethereum or BNB Smart Chain, Otterpie uses WalletConnect to connect to an external EVM wallet. For Tron, the flow uses TronLink. Those providers handle connection and signing requests under their own privacy policies. WalletConnect/Reown may process connection metadata such as IP address, wallet address, device or SDK information, and encrypted protocol messages; see Reown’s privacy policy at https://reown.com/privacy-policy. The wallet provider may also process information according to its own settings and policy.",
+      "Bridge information and transactions are also sent to the relevant blockchain networks, RPC services, and bridge contracts or validators. Public transaction data can include the sending and receiving addresses, token, amount, and transaction status. Otterpie cannot erase confirmed public-chain records.",
     ],
   },
   {
     title: "Service providers and sharing",
     paragraphs: [
-      "We use service providers to run Otterpie. The current app connects to Supabase for account and wallet data, Google Analytics for site usage measurement, email delivery services for account messages, and blockchain network or RPC providers to read data and submit transactions. Those providers process information needed for their services under their own terms and privacy practices.",
+      "We use service providers to run Otterpie. The current app connects to Supabase for account and wallet data, Google Analytics for site usage measurement, email delivery services for account messages, blockchain network or RPC providers to read data and submit transactions, and WalletConnect/Reown or TronLink when you initiate an external-wallet bridge flow. Those providers process information needed for their services under their own terms and privacy practices.",
       "We do not sell personal information. Information may also be disclosed when required by law, to protect users or the service, or as part of a transfer of the service or its assets, subject to applicable law.",
       "These providers may process information in countries other than yours. The exact server locations depend on the deployment and provider configuration.",
     ],
@@ -47,7 +52,7 @@ const sections: LegalSection[] = [
   {
     title: "Cookies and analytics",
     paragraphs: [
-      "Otterpie uses an HttpOnly session cookie to keep you signed in. The current session cookie is configured to expire after seven days. Google Analytics may use cookies or similar technologies to measure visits and site usage. You can manage or block cookies through your browser, though blocking the session cookie may prevent sign-in from working.",
+      "Otterpie uses an HttpOnly session cookie to keep you signed in. The current session cookie is configured to expire after seven days. Google Analytics may use cookies or similar technologies to measure visits and site usage. WalletConnect or other wallet providers may use their own browser storage or connection technologies when you start a wallet session. You can manage or block cookies through your browser, though blocking the session cookie may prevent sign-in from working.",
     ],
   },
   {
@@ -76,7 +81,7 @@ export default function PrivacyPage() {
     <LegalDocument
       title="Privacy Policy"
       summary="This page explains what information Otterpie handles, why it is used, and the choices you may have."
-      updated="October 21, 2026"
+      updated="October 22, 2026"
       sections={sections}
       otherPage={{ href: "/terms", label: "Terms of Service" }}
     />
