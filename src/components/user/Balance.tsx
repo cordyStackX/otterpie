@@ -33,6 +33,8 @@ export default function Balance({ email, network }: BalanceProps) {
   const [tokenBusy, setTokenBusy] = useState(false);
   const [tokenError, setTokenError] = useState("");
   const [tokenNotice, setTokenNotice] = useState("");
+  const [editingManagedTokens, setEditingManagedTokens] = useState(false);
+  const [tokensMarkedForRemoval, setTokensMarkedForRemoval] = useState<string[]>([]);
   const [swapOpen, setSwapOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [trustlinePromptOpen, setTrustlinePromptOpen] = useState(false);
@@ -53,7 +55,7 @@ export default function Balance({ email, network }: BalanceProps) {
 
   useEffect(() => { void loadManagedTokens(); }, [loadManagedTokens]);
 
-  const updateManagedTokens = async (body: Record<string, string>) => {
+  const updateManagedTokens = async (body: Record<string, string | string[]>) => {
     setTokenBusy(true);
     setTokenError("");
     setTokenNotice("");
@@ -65,10 +67,12 @@ export default function Balance({ email, network }: BalanceProps) {
       setTokenAddress("");
       setTokenCode("");
       setTokenIssuer("");
-      setTokenNotice(body.action === "remove" ? "Token removed from your list." : "Token added to your list.");
+      setTokenNotice(body.action === "remove" || body.action === "removeMany" ? "Token removed from your list." : "Token added to your list.");
       await loadBalances(false);
+      return true;
     } catch (e) {
       setTokenError(e instanceof Error ? e.message : "Could not update your token list.");
+      return false;
     } finally {
       setTokenBusy(false);
     }
@@ -206,7 +210,18 @@ export default function Balance({ email, network }: BalanceProps) {
           </div>
 
           {tokenDialogOpen && config.walletType !== "stellar" && (
-            <div className="mt-5 border-t border-foreground/10 pt-5">
+            <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !tokenBusy) setTokenDialogOpen(false); }}>
+              <section role="dialog" aria-modal="true" aria-labelledby="manage-wallet-tokens-title" className="my-auto w-full max-w-2xl rounded-2xl border border-foreground/10 bg-background p-5 text-foreground shadow-2xl sm:p-6">
+                <header className="mb-5 flex items-start justify-between gap-4 border-b border-foreground/10 pb-4">
+                  <div>
+                    <h2 id="manage-wallet-tokens-title" className="text-lg font-semibold">Manage tokens</h2>
+                    <p className="mt-1 text-sm text-foreground/55">Import or remove ERC-20 tokens on BOT Chain.</p>
+                  </div>
+                  <button type="button" aria-label="Close token manager" onClick={() => { setTokenDialogOpen(false); setEditingManagedTokens(false); setTokensMarkedForRemoval([]); }} disabled={tokenBusy} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-foreground/50 hover:bg-foreground/5 hover:text-foreground disabled:opacity-40">
+                    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-5 w-5"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+                  </button>
+                </header>
+                <div className="space-y-4">
               <form onSubmit={(event) => { event.preventDefault(); void updateManagedTokens(config.walletType === "stellar"
                 ? { action: "add", code: tokenCode, issuer: tokenIssuer }
                 : { action: "add", address: tokenAddress }); }} className="grid gap-3 sm:grid-cols-[1fr_auto]">
@@ -227,14 +242,32 @@ export default function Balance({ email, network }: BalanceProps) {
                 <button disabled={tokenBusy} className="self-end rounded-md border border-primary/40 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/5 disabled:opacity-50">{tokenBusy ? "Saving…" : "Add token"}</button>
               </form>
 
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Saved tokens</h3>
+                  {editingManagedTokens && <p className="mt-1 text-xs text-foreground/50">Select tokens to remove, then save your changes.</p>}
+                </div>
+                <div className="flex gap-2">
+                  {editingManagedTokens ? <>
+                    <button type="button" onClick={() => { setTokensMarkedForRemoval([]); setEditingManagedTokens(false); }} disabled={tokenBusy} className="rounded-md border border-foreground/15 px-3 py-2 text-xs font-semibold text-foreground/75 hover:bg-foreground/5 disabled:opacity-50">Cancel</button>
+                    <button type="button" onClick={async () => {
+                      if (!tokensMarkedForRemoval.length) { setEditingManagedTokens(false); return; }
+                      const saved = await updateManagedTokens({ action: "removeMany", keys: tokensMarkedForRemoval });
+                      if (saved) { setTokensMarkedForRemoval([]); setEditingManagedTokens(false); }
+                    }} disabled={tokenBusy} className="rounded-md bg-primary px-3 py-2 text-xs font-semibold text-background disabled:opacity-50">{tokenBusy ? "Saving…" : `Save${tokensMarkedForRemoval.length ? ` (${tokensMarkedForRemoval.length})` : ""}`}</button>
+                  </> : <button type="button" onClick={() => { setTokensMarkedForRemoval([]); setEditingManagedTokens(true); }} disabled={tokenBusy || managedTokens.length === 0} className="rounded-md border border-foreground/15 px-3 py-2 text-xs font-semibold text-foreground/75 hover:bg-foreground/5 disabled:opacity-50">Edit tokens</button>}
+                </div>
+              </div>
+
               {managedTokens.length > 0 ? (
-                <ul className="mt-5 divide-y divide-foreground/10 rounded-lg border border-foreground/10">
+                <ul className="mt-3 divide-y divide-foreground/10 rounded-lg border border-foreground/10">
                   {managedTokens.map((token) => {
                     const key = token.type === "evm" ? `evm:${token.address.toLowerCase()}` : `stellar:${token.code}:${token.issuer}`;
                     const label = token.type === "evm" ? `${token.symbol} · ${token.address}` : `${token.code} · ${token.issuer}`;
-                    return <li key={key} className="flex flex-wrap items-center justify-between gap-3 px-3 py-3 text-xs text-foreground/75">
+                    const selected = tokensMarkedForRemoval.includes(key);
+                    return <li key={key} className={`flex flex-wrap items-center justify-between gap-3 px-3 py-3 text-xs text-foreground/75 ${selected ? "bg-red-500/5" : ""}`}>
                       <span className="break-all">{label}</span>
-                      <button type="button" disabled={tokenBusy} onClick={() => void updateManagedTokens({ action: "remove", key })} className="text-red-400 hover:underline disabled:opacity-50">Remove</button>
+                      {editingManagedTokens && <label className="inline-flex shrink-0 cursor-pointer items-center gap-2 text-xs text-red-400"><input type="checkbox" checked={selected} disabled={tokenBusy} onChange={() => setTokensMarkedForRemoval((current) => selected ? current.filter((item) => item !== key) : [...current, key])} className="h-4 w-4 accent-red-500" />Remove</label>}
                     </li>;
                   })}
                 </ul>
@@ -243,6 +276,8 @@ export default function Balance({ email, network }: BalanceProps) {
               {tokenError && <p role="alert" className="mt-3 text-sm text-red-400">{tokenError}</p>}
               {config.walletType === "evm" && <p className="mt-4 text-xs text-foreground/45">Imported tokens appear in balances. Swaps are available only for assets with a configured BOT Chain liquidity route.</p>}
               {config.walletType === "stellar" && <p className="mt-4 text-xs text-foreground/45">Importing a token only tracks it here; your Stellar account must establish its trustline before it can hold the asset.</p>}
+                </div>
+              </section>
             </div>
           )}
         </section>

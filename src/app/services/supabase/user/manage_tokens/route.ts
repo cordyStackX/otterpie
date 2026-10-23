@@ -104,14 +104,36 @@ export async function POST(request: NextRequest) {
       : `stellar:${token.code}:${token.issuer}` !== key);
     if (remaining.length === tokens.length) return errorResponse("Token not found.", 404);
     tokens.splice(0, tokens.length, ...remaining);
+  } else if (body.action === "removeMany") {
+    const keys = Array.isArray(body.keys) ? body.keys.filter((key): key is string => typeof key === "string") : [];
+    if (keys.length === 0) return errorResponse("Select at least one token to remove.");
+    const keysToRemove = new Set(keys);
+    const remaining = tokens.filter((token) => !keysToRemove.has(token.type === "evm"
+      ? `evm:${token.address.toLowerCase()}`
+      : `stellar:${token.code}:${token.issuer}`));
+    if (remaining.length === tokens.length) return errorResponse("None of the selected tokens were found.", 404);
+    tokens.splice(0, tokens.length, ...remaining);
   } else {
     return errorResponse("Choose a supported token action.");
   }
 
-  const { error: updateError } = await supabaseServer.from("tbl_wallet")
+  const { data: updatedWallets, error: updateError } = await supabaseServer.from("tbl_wallet")
     .update({ token_balance: tokens })
     .eq("email", email)
-    .eq("network", network);
-  if (updateError) return errorResponse("Could not save your wallet tokens.", 500);
+    .eq("network", network)
+    .select("network");
+  if (updateError) {
+    console.error("Could not save managed wallet tokens:", {
+      code: updateError.code,
+      message: updateError.message,
+      details: updateError.details,
+      hint: updateError.hint,
+    });
+    return errorResponse("Could not save your wallet tokens. Check the server log for the database error.", 500);
+  }
+  if (!updatedWallets?.length) {
+    console.error("Managed token update matched no wallet row.", { network });
+    return errorResponse("Could not find the matching wallet to save these tokens.", 404);
+  }
   return NextResponse.json({ success: true, tokens });
 }
