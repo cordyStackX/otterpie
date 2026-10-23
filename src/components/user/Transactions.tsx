@@ -95,8 +95,13 @@ export default function Transactions({ email, network } : TransactionProps) {
       setError("");
 
       try {
-        const assets = transactionAssets;
-        const responses = await Promise.all(assets.map((asset) =>
+        // The Stellar endpoint returns all wallet assets in one response;
+        // querying it once per asset duplicates records and causes stale rows
+        // when React reconciles the filter list.
+        const requestAssets = networkConfig?.family === "stellar"
+          ? [transactionAssets[0] ?? "XLM"]
+          : transactionAssets;
+        const responses = await Promise.all(requestAssets.map((asset) =>
           Fetch_to("POST", route, { email, cursor: cursor[asset], asset })
         ));
         const failedResponse = responses.find((response) => !response.success);
@@ -227,9 +232,9 @@ export default function Transactions({ email, network } : TransactionProps) {
           ...bridges,
         ].sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
 
-        const updatedCursors = emptyCursors(assets);
+        const updatedCursors = emptyCursors(transactionAssets);
         responses.forEach((response, index) => {
-          updatedCursors[assets[index]] = response.data?.nextCursor ?? null;
+          updatedCursors[requestAssets[index]] = response.data?.nextCursor ?? null;
         });
         const more = responses.some((response) => response.data?.hasMore === true);
 

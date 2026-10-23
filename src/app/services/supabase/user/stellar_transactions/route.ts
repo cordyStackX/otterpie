@@ -41,8 +41,7 @@ export async function POST(params: NextRequest) {
     .from("tbl_wallet")
     .select("wallet_address")
     .eq("email", email)
-    // TODO: if this table holds both networks, filter by your network/chain column too
-    // .eq("network", "stellar")
+    .eq("network", "stellar")
     .maybeSingle();
 
   if (error) {
