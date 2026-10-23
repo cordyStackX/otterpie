@@ -188,24 +188,24 @@ export default function Balance({ email, network }: BalanceProps) {
         <section className="rounded-xl border border-foreground/10 bg-background p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-foreground sm:text-base">Manage tokens</h2>
+              <h2 className="text-sm font-semibold text-foreground sm:text-base">{config.walletType === "stellar" ? "Stellar wallet actions" : "Manage tokens"}</h2>
               <p className="mt-1 text-xs text-foreground/55 sm:text-sm">
                 {config.walletType === "stellar"
-                  ? "Import Stellar classic assets by asset code and issuer. A trustline is required to hold a balance."
+                  ? "Swap or withdraw assets available in your Stellar wallet."
                   : "Import ERC-20 tokens deployed on BOT Chain by contract address."}
               </p>
             </div>
-            <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto">
+            <div className={`grid w-full gap-2 sm:flex sm:w-auto ${config.walletType === "stellar" ? "grid-cols-2" : "grid-cols-3"}`}>
               {config.routes.withdraw && <button type="button" disabled={showSkeleton || !withdrawAssets.some((item) => item.balance > 0)} onClick={() => setWithdrawOpen(true)} className="min-w-0 rounded-md border border-foreground/15 px-2 py-2 text-xs font-semibold leading-tight text-foreground/80 hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:text-sm">Withdraw</button>}
               {(config.walletType === "stellar" || config.walletType === "evm") && <button type="button" disabled={showSkeleton || orderedBalances.length < 2} onClick={() => setSwapOpen(true)} className="min-w-0 rounded-md border border-primary/40 px-2 py-2 text-xs font-semibold leading-tight text-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:text-sm"><span className="sm:hidden">Swap</span><span className="hidden sm:inline">Swap tokens</span></button>}
-              <button type="button" onClick={() => { setTokenDialogOpen((open) => !open); setTokenError(""); setTokenNotice(""); }} className="min-w-0 rounded-md bg-primary px-2 py-2 text-xs font-semibold leading-tight text-background hover:opacity-90 sm:px-4 sm:text-sm">
+              {config.walletType !== "stellar" && <button type="button" onClick={() => { setTokenDialogOpen((open) => !open); setTokenError(""); setTokenNotice(""); }} className="min-w-0 rounded-md bg-primary px-2 py-2 text-xs font-semibold leading-tight text-background hover:opacity-90 sm:px-4 sm:text-sm">
                 <span className="sm:hidden">{tokenDialogOpen ? "Close manager" : "Manage tokens"}</span>
                 <span className="hidden sm:inline">{tokenDialogOpen ? "Close token manager" : "Add or manage tokens"}</span>
-              </button>
+              </button>}
             </div>
           </div>
 
-          {tokenDialogOpen && (
+          {tokenDialogOpen && config.walletType !== "stellar" && (
             <div className="mt-5 border-t border-foreground/10 pt-5">
               <form onSubmit={(event) => { event.preventDefault(); void updateManagedTokens(config.walletType === "stellar"
                 ? { action: "add", code: tokenCode, issuer: tokenIssuer }
