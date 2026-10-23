@@ -56,8 +56,7 @@ export default function EvmToStellarBridge({ walletAddress }: Props) {
   const [approvalHash, setApprovalHash] = useState("");
   const [trustline, setTrustline] = useState<boolean | null>(null);
   const [stellarFunded, setStellarFunded] = useState<boolean | null>(null);
-  const [trustlinePassword, setTrustlinePassword] = useState("");
-  const [busy, setBusy] = useState<"connect" | "destination" | "trustline" | "quote" | "send" | null>(null);
+  const [busy, setBusy] = useState<"connect" | "destination" | "quote" | "send" | null>(null);
   const [error, setError] = useState("");
   const selectedSource = bridgeConfig.networks[source];
 
@@ -79,20 +78,6 @@ export default function EvmToStellarBridge({ walletAddress }: Props) {
   }, [walletAddress]);
 
   useEffect(() => { void refreshDestination(); }, [refreshDestination]);
-
-  const setupTrustline = async () => {
-    setBusy("trustline");
-    setError("");
-    try {
-      const response = await Fetch_to("POST", routes["bridge-non-evm"], { action: "trustline", password: trustlinePassword }, undefined, 1);
-      if (!response.success) throw new Error(response.message || "Could not create the Stellar USDT0 trustline.");
-      setTrustlinePassword("");
-      await refreshDestination();
-    } catch (trustlineError) {
-      setError(trustlineError instanceof Error ? trustlineError.message : "Could not create the Stellar USDT0 trustline.");
-      setBusy(null);
-    }
-  };
 
   const connect = async () => {
     setBusy("connect");
@@ -251,11 +236,8 @@ export default function EvmToStellarBridge({ walletAddress }: Props) {
 
       {trustline === null ? <p role="status" className="mt-4 text-sm text-foreground/55">{busy === "destination" ? "Checking your Stellar receiving account…" : "Could not confirm the Stellar receiving account."}</p> : !stellarFunded ? <p role="alert" className="mt-4 rounded-lg border border-amber-400/25 bg-amber-400/5 p-3 text-sm text-amber-100/80">Your Stellar wallet must be funded before it can receive USDT0.</p> : !trustline ? (
         <div className="mt-4 rounded-lg border border-amber-400/25 bg-amber-400/5 p-4">
-          <p className="text-sm text-amber-100/80">The receiving wallet needs a USDT0 trustline. Creating it reserves XLM on Stellar.</p>
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <input type="password" autoComplete="current-password" value={trustlinePassword} onChange={(event) => setTrustlinePassword(event.target.value)} required placeholder="Otterpie account password" className="min-w-0 flex-1 rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm text-foreground" />
-            <button type="button" onClick={() => void setupTrustline()} disabled={busy !== null || !trustlinePassword} className="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy === "trustline" ? "Creating…" : "Create trustline"}</button>
-          </div>
+          <p className="text-sm text-amber-100/80">Your Stellar wallet needs a USDT0 trustline before it can receive a bridge transfer.</p>
+          <a href="/user/setting" className="mt-2 inline-block text-sm font-medium text-primary underline underline-offset-2">Set it up in Settings</a>
         </div>
       ) : null}
 

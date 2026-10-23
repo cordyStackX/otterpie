@@ -2,7 +2,7 @@
 
 import { type FormEvent, useEffect, useState } from "react";
 import { Fetch_to } from "@/utilities"; 
-import { walletNetworkLabel } from "@/utilities/network";
+import { getWalletNetworkConfig, walletNetworkLabel } from "@/utilities/network";
 import routes from "@/routes/user.json";
 import authRoutes from "@/routes/auth.json";
 
@@ -34,8 +34,54 @@ export default function Setting({ email, username, walletAddress, network, onUse
   const [savingPassword, setSavingPassword] = useState(false);
   const [forgotPasswordMessage, setForgotPasswordMessage] = useState("");
   const [sendingForgotPassword, setSendingForgotPassword] = useState(false);
+  const [trustlineStatus, setTrustlineStatus] = useState<"loading" | "ready" | "missing" | "unfunded" | "error">("loading");
+  const [trustlinePassword, setTrustlinePassword] = useState("");
+  const [trustlineBusy, setTrustlineBusy] = useState(false);
+  const [trustlineMessage, setTrustlineMessage] = useState("");
+  const [trustlineRefresh, setTrustlineRefresh] = useState(0);
+  const isStellarWallet = getWalletNetworkConfig(network)?.walletType === "stellar";
 
   useEffect(() => setNewUsername(username), [username]);
+
+  useEffect(() => {
+    if (!isStellarWallet) return;
+    let cancelled = false;
+    setTrustlineStatus("loading");
+    setTrustlineMessage("");
+    void (async () => {
+      try {
+        const response = await Fetch_to("POST", routes["bridge-non-evm"], { action: "destination" }, undefined, 1);
+        if (!response.success) throw new Error(response.message || "Could not check the Stellar trustline.");
+        const data = response.data as { address?: string; trustline?: boolean; funded?: boolean };
+        if (data.address !== walletAddress) throw new Error("The Stellar wallet does not match this account.");
+        if (!cancelled) setTrustlineStatus(data.funded === false ? "unfunded" : data.trustline ? "ready" : "missing");
+      } catch (error) {
+        if (!cancelled) {
+          setTrustlineStatus("error");
+          setTrustlineMessage(error instanceof Error ? error.message : "Could not check the Stellar trustline.");
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isStellarWallet, trustlineRefresh, walletAddress]);
+
+  const createUsdt0Trustline = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!trustlinePassword || trustlineBusy) return;
+    setTrustlineBusy(true);
+    setTrustlineMessage("");
+    try {
+      const response = await Fetch_to("POST", routes["bridge-non-evm"], { action: "trustline", password: trustlinePassword }, undefined, 1);
+      if (!response.success) throw new Error(response.message || "Could not create the USDT0 trustline.");
+      setTrustlinePassword("");
+      setTrustlineStatus("ready");
+      setTrustlineMessage("USDT0 trustline created. Your Stellar wallet can now receive USDT0.");
+    } catch (error) {
+      setTrustlineMessage(error instanceof Error ? error.message : "Could not create the USDT0 trustline.");
+    } finally {
+      setTrustlineBusy(false);
+    }
+  };
 
   const updateProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -369,6 +415,24 @@ export default function Setting({ email, username, walletAddress, network, onUse
           Your address is public and safe to share for receiving funds. Never share your wallet secret with anyone.
         </p>
       </section>
+
+      {isStellarWallet && <section aria-labelledby="stellar-trustline-title" className={`${card} p-5 sm:p-7`}>
+        <div className="mb-5 border-b border-foreground/10 pb-5">
+          <h2 id="stellar-trustline-title" className="text-lg font-semibold">Stellar USDT0 trustline</h2>
+          <p className="mt-1 text-sm leading-6 text-foreground/55">A trustline lets your Stellar wallet hold USDT0. Creating it reserves XLM on Stellar; the reserve is not a transaction fee.</p>
+        </div>
+        {trustlineStatus === "loading" ? <p role="status" className="text-sm text-foreground/55">Checking your USDT0 trustline…</p>
+          : trustlineStatus === "ready" ? <p role="status" className="text-sm text-emerald-500">Your wallet has a USDT0 trustline and can receive USDT0.</p>
+          : trustlineStatus === "unfunded" ? <p role="alert" className="text-sm text-amber-600 dark:text-amber-300">Fund your Stellar wallet with XLM before creating a trustline.</p>
+          : trustlineStatus === "missing" ? <form onSubmit={(event) => void createUsdt0Trustline(event)} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <label htmlFor="stellar-trustline-password" className="block text-sm font-medium">Confirm with your account password
+              <input id="stellar-trustline-password" type="password" autoComplete="current-password" value={trustlinePassword} onChange={(event) => setTrustlinePassword(event.target.value)} required disabled={trustlineBusy} className="mt-2 w-full rounded-xl border border-foreground/10 bg-background px-4 py-3 text-sm font-normal outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/15" />
+            </label>
+            <button type="submit" disabled={!trustlinePassword || trustlineBusy} className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-background disabled:cursor-wait disabled:opacity-50">{trustlineBusy ? "Creating trustline…" : "Create USDT0 trustline"}</button>
+          </form>
+          : <div className="flex flex-wrap items-center gap-3"><p role="alert" className="text-sm text-rose-500">{trustlineMessage || "Could not check the USDT0 trustline."}</p><button type="button" onClick={() => setTrustlineRefresh((value) => value + 1)} className="text-sm font-medium text-primary underline">Try again</button></div>}
+        {trustlineMessage && trustlineStatus !== "error" && <p role="status" className={`mt-3 text-sm ${trustlineStatus === "ready" ? "text-emerald-500" : "text-rose-500"}`}>{trustlineMessage}</p>}
+      </section>}
 
       {secretDialogOpen && (
         <div

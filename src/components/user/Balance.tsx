@@ -35,6 +35,7 @@ export default function Balance({ email, network }: BalanceProps) {
   const [tokenNotice, setTokenNotice] = useState("");
   const [swapOpen, setSwapOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [trustlinePromptOpen, setTrustlinePromptOpen] = useState(false);
   const config = getWalletNetworkConfig(network);
   const requestKey = `${network}:${email}`;
   const activeRequestKey = useRef(requestKey);
@@ -141,6 +142,11 @@ export default function Balance({ email, network }: BalanceProps) {
       window.clearInterval(timer);
     };
   }, [loadBalances]);
+
+  useEffect(() => {
+    if (config?.walletType !== "stellar" || loadedKey !== requestKey) return;
+    setTrustlinePromptOpen(balances.some((item) => item.trustline === false));
+  }, [balances, config?.walletType, loadedKey, requestKey]);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -315,6 +321,19 @@ export default function Balance({ email, network }: BalanceProps) {
       {withdrawOpen && config?.routes.withdraw && (
         <BalanceWithdrawDialog route={config.routes.withdraw} email={email} assets={withdrawAssets}
           onClose={() => setWithdrawOpen(false)} onWithdrawn={() => loadBalances(false)} />
+      )}
+      {trustlinePromptOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setTrustlinePromptOpen(false); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="balance-trustline-title" className="w-full max-w-md rounded-2xl border border-foreground/10 bg-background p-6 text-foreground shadow-2xl">
+            <p className="text-xs font-medium text-primary">Stellar wallet</p>
+            <h2 id="balance-trustline-title" className="mt-2 text-lg font-semibold">Set up your USDT0 trustline</h2>
+            <p className="mt-2 text-sm leading-6 text-foreground/60">Your wallet needs a USDT0 trustline before it can receive USDT0. You can create it in Settings. The trustline reserves XLM on Stellar.</p>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => setTrustlinePromptOpen(false)} className="rounded-xl border border-foreground/15 px-4 py-3 text-sm font-medium text-foreground/75 hover:bg-foreground/5">Later</button>
+              <a href="/user/setting" className="rounded-xl bg-primary px-4 py-3 text-center text-sm font-semibold text-background hover:opacity-90">Open Settings</a>
+            </div>
+          </section>
+        </div>
       )}
     </div>
   );
