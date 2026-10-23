@@ -21,15 +21,52 @@
     },
     "routes": {
       "balance": "/services/supabase/user/bot_chain_balance",
+      "manageTokens": "/services/supabase/user/manage_tokens",
+      "swap": "/services/supabase/user/swap_tokens",
       "transactions": "/services/supabase/user/bot_chain_transactions",
       "withdraw": "/services/withdraw/withdraw_botchain"
     },
     "explorer": {
       "name": "BOT Chain Explorer",
+      "apiUrl": "https://scan.botchain.ai/api",
       "transactionUrlTemplate": "https://scan.botchain.ai/tx/{hash}"
     },
     "features": {
       "pieSwap": true
+    },
+    "swapConfig": {
+      "routerAddress": "0x1414eD29FdFD322c3c0a830330ed982E2D629e76",
+      "wbotAddress": "0xD5452816194a3784dBa983426cCe7c122F4abd30",
+      "usdtAddress": "0xaBabc7Ddc03e501d190C676BF3d92ef0e6e87a3C",
+      "pieBotPairAddress": "0xa7a7796b5ec5ea2fdec1f94a3e71fa027f7cf45b",
+      "routerAbi": [
+        "function getAmountsOut(uint amountIn, address[] memory path) view returns (uint[] memory amounts)",
+        "function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline) payable returns (uint[] memory amounts)",
+        "function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) returns (uint[] memory amounts)"
+      ],
+      "tokenAbi": [
+        "function balanceOf(address account) view returns (uint256)",
+        "function decimals() view returns (uint8)",
+        "function allowance(address owner, address spender) view returns (uint256)",
+        "function approve(address spender, uint256 amount) returns (bool)"
+      ],
+      "pairAbi": [
+        "function token0() view returns (address)",
+        "function token1() view returns (address)",
+        "function getReserves() view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)"
+      ]
+    },
+    "manageTokens": {
+      "metadataAbi": [
+        "function symbol() view returns (string)",
+        "function decimals() view returns (uint8)"
+      ]
+    },
+    "balanceConfig": {
+      "erc20Abi": [
+        "function balanceOf(address account) view returns (uint256)",
+        "function decimals() view returns (uint8)"
+      ]
     },
     "bridge": {
       "enabled": true,
@@ -113,14 +150,18 @@
       "label": "Stellar Mainnet"
     },
     "nativeAsset": "XLM",
-    "transactionAssets": ["XLM"],
+    "transactionAssets": ["XLM", "USDT0"],
     "assetLabels": {
-      "XLM": "XLM · Stellar"
+      "XLM": "XLM · Stellar",
+      "USDT0": "USDT0 · Stellar / LayerZero"
     },
     "routes": {
       "balance": "/services/supabase/user/stellar_balance",
+      "manageTokens": "/services/supabase/user/manage_tokens",
+      "swap": "/services/supabase/user/stellar_swap",
       "transactions": "/services/supabase/user/stellar_transactions",
-      "withdraw": "/services/withdraw/withdraw_stellar"
+      "withdraw": "/services/withdraw/withdraw_stellar",
+      "bridge": "/services/supabase/user/bridge-non-evm"
     },
     "explorer": {
       "name": "Stellar Expert",
@@ -128,6 +169,61 @@
     },
     "features": {
       "pieSwap": false
+    },
+    "swapConfig": {
+      "protocol": "path-payment-strict-send",
+      "horizonUrl": "https://horizon.stellar.org",
+      "networkPassphrase": "Public Global Stellar Network ; September 2015",
+      "assetDecimals": 7,
+      "baseFeeStroops": "10000"
+    },
+    "tokens": {
+      "USDT0": {
+        "symbol": "USDT0",
+        "name": "USDT0",
+        "decimals": 7,
+        "classicAsset": {
+          "code": "USDT0",
+          "issuer": "GATISXX6BZ6NC7IKQBY37CJD4SOZL3CYZJWXEDG6JVIY4WBS6KXJHN6Q"
+        },
+        "sacContract": "CBSJZEIO5C7KC2SF3MKSNXXJSW5G3VTNBX4ATMKUI3B2MR4JKM4R26YF",
+        "oftContract": "CBOWOLFSDM5PZXNFIVDMP5NZ7U2GSIHED6H6R446QOHF266XINKUMMF6"
+      }
+    },
+    "bridge": {
+      "enabled": true,
+      "protocol": "layerzero-oft",
+      "asset": "USDT0",
+      "decimals": 7,
+      "sharedDecimals": 6,
+      "sourceEid": 30600,
+      "rpcUrl": "https://mainnet.sorobanrpc.com",
+      "endpointContract": "CCQLLRE5JBAWYCW3KTWOIWLMFDUOKROQVZNSALQMGOSXNW3ERUOWTZGK",
+      "trustlineRequired": true,
+      "networks": {
+        "ethereum": {
+          "label": "Ethereum",
+          "eid": 30101,
+          "chainId": 1,
+          "decimals": 6,
+          "nativeAsset": "ETH",
+          "tokenSymbol": "USDT",
+          "explorerUrl": "https://etherscan.io/tx/",
+          "token": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+          "oft": "0x6C96dE32CEa08842dcc4058c14d3aaAD7Fa41dee"
+        },
+        "arbitrum": {
+          "label": "Arbitrum One",
+          "eid": 30110,
+          "chainId": 42161,
+          "decimals": 6,
+          "nativeAsset": "ETH",
+          "tokenSymbol": "USDT0",
+          "explorerUrl": "https://arbiscan.io/tx/",
+          "token": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+          "oft": "0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92"
+        }
+      }
     }
   }
 }

@@ -6,6 +6,7 @@ import { Fetch_to } from "@/utilities";
 import routes from "@/routes/user.json";
 import { getWalletNetworkConfig, walletNetworkLabel } from "@/utilities/network";
 import walletNetworks from "@/config/json_conf/wallet_networks.json";
+import StellarBridge from "@/components/user/StellarBridge";
 
 type BridgeProps = { network: string; walletAddress: string };
 const botChainBridge = walletNetworks.bot_chain.bridge;
@@ -296,6 +297,7 @@ export default function Bridge({ network, walletAddress }: BridgeProps) {
   const [submitted, setSubmitted] = useState<{ txHash: string; approvalHash?: string; message: string } | null>(null);
   const walletConfig = getWalletNetworkConfig(network);
   const supportsEvmBridge = walletConfig?.walletType === "evm";
+  const supportsStellarBridge = walletConfig?.walletType === "stellar" && walletNetworks.stellar.bridge.enabled;
   const balanceRequestKey = `${network}:${walletAddress}`;
   const activeBalanceKey = useRef(balanceRequestKey);
   const showBridgeSkeleton = supportsEvmBridge && direction === "outbound"
@@ -305,7 +307,7 @@ export default function Bridge({ network, walletAddress }: BridgeProps) {
   const refreshBotUsdtBalance = useCallback(async () => {
     setBalanceLoading(true);
     try {
-      const response = await Fetch_to("POST", routes.bridge, { action: "balance" }, undefined, 1);
+      const response = await Fetch_to("POST", routes["bridge-evm"], { action: "balance" }, undefined, 1);
       if (!response.success) throw new Error(response.message || "Could not load balance.");
       const result = response.data as { balance?: string };
       if (typeof result.balance !== "string") throw new Error("Invalid balance response.");
@@ -341,7 +343,7 @@ export default function Bridge({ network, walletAddress }: BridgeProps) {
     setSubmitted(null);
     setBusy("quote");
     try {
-      const response = await Fetch_to("POST", routes.bridge, {
+      const response = await Fetch_to("POST", routes["bridge-evm"], {
         action: "quote", destination, amount: amount.trim(), recipient: recipient.trim(),
       }, undefined, 1);
       if (!response.success) throw new Error(response.message || "Could not get a bridge quote.");
@@ -362,7 +364,7 @@ export default function Bridge({ network, walletAddress }: BridgeProps) {
     setError("");
     setBusy("bridge");
     try {
-      const response = await Fetch_to("POST", routes.bridge, {
+      const response = await Fetch_to("POST", routes["bridge-evm"], {
         action: "bridge", destination, amount: amount.trim(), recipient: recipient.trim(), password,
       }, undefined, 1);
       if (!response.success) throw new Error(response.message || "The bridge request could not be submitted.");
@@ -388,9 +390,9 @@ export default function Bridge({ network, walletAddress }: BridgeProps) {
         <div>
           <p className="text-xs font-medium text-primary">Move USDT across chains</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Bridge</h1>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-foreground/55">Move USDT between BOT Chain and supported networks.</p>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-foreground/55">{supportsStellarBridge ? "Move USDT0 between Stellar and Ethereum or Arbitrum." : "Move USDT between BOT Chain and supported networks."}</p>
         </div>
-        <span className="rounded-full border border-primary/20 bg-primary/[0.06] px-3 py-1.5 text-xs font-medium text-primary">USDT · Mainnet</span>
+        <span className="rounded-full border border-primary/20 bg-primary/[0.06] px-3 py-1.5 text-xs font-medium text-primary">{supportsStellarBridge ? "USDT0 · Stellar" : "USDT · Mainnet"}</span>
       </header>
 
       {supportsEvmBridge && (
@@ -400,7 +402,7 @@ export default function Bridge({ network, walletAddress }: BridgeProps) {
         </div>
       )}
 
-      {!supportsEvmBridge ? (
+      {supportsStellarBridge ? <StellarBridge walletAddress={walletAddress} /> : !supportsEvmBridge ? (
         <section role="status" className="rounded-xl border border-amber-400/25 bg-amber-400/5 p-5">
           <h2 className="text-base font-semibold text-amber-200">Bridging unavailable for this wallet</h2>
           {!network ? (

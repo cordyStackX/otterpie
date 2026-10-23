@@ -2,30 +2,41 @@ import { NextRequest, NextResponse } from "next/server";
 import { Horizon, StrKey } from "@stellar/stellar-sdk";
 import { Security } from "@/firewall";
 import { supabaseServer } from "@/lib";
+import walletNetworks from "@/config/json_conf/wallet_networks.json";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // always read a fresh balance
 
 const server = new Horizon.Server(
-  process.env.STELLAR_HORIZON_URL || "https://horizon.stellar.org"
+  process.env.STELLAR_HORIZON_URL || walletNetworks.stellar.swapConfig.horizonUrl
 );
+
+type StellarBalance = { asset: string; issuer: string | null; balance: string; custom?: boolean };
+type ManagedStellarToken = { type: "stellar"; code: string; issuer: string };
+
+function isManagedStellarToken(token: unknown): token is ManagedStellarToken {
+  if (!token || typeof token !== "object") return false;
+  const item = token as { type?: unknown; code?: unknown; issuer?: unknown };
+  return item.type === "stellar" && typeof item.code === "string" && typeof item.issuer === "string";
+}
 
 export async function POST(params: NextRequest) {
   const auth = await Security(params);
   if (auth?.error) {
+    if (auth.error instanceof NextResponse) return auth.error;
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const { email } = await params.json();
+  const email = "email" in auth && typeof auth.email === "string" ? auth.email : "";
+  if (!email) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
   // Reading a balance only needs the PUBLIC address, so the secret key is
   // never selected, decrypted or held in memory here.
   const { data, error } = await supabaseServer
     .from("tbl_wallet")
-    .select("wallet_address")
+    .select("wallet_address, token_balance")
     .eq("email", email)
-    // TODO: if this table holds both networks, filter by your network/chain column too
-    // .eq("network", "stellar")
+    .eq("network", "stellar")
     .maybeSingle();
 
   if (error) {
@@ -46,17 +57,38 @@ export async function POST(params: NextRequest) {
   try {
     const account = await server.loadAccount(address);
 
-    const balances = account.balances.map((b) => {
-      if (b.asset_type === "native") {
-        return { asset: "XLM", issuer: null, balance: b.balance };
+    const balances: StellarBalance[] = account.balances.flatMap((b): StellarBalance[] => {
+      switch (b.asset_type) {
+        case "native":
+          return [{ asset: "XLM", issuer: null, balance: b.balance }];
+        case "liquidity_pool_shares":
+          return [{ asset: `pool:${b.liquidity_pool_id}`, issuer: null, balance: b.balance }];
+        case "credit_alphanum4":
+        case "credit_alphanum12":
+          return [{ asset: b.asset_code, issuer: b.asset_issuer, balance: b.balance }];
+        default:
+          return [];
       }
-      if (b.asset_type === "liquidity_pool_shares") {
-        return { asset: `pool:${b.liquidity_pool_id}`, issuer: null, balance: b.balance };
-      }
-      return { asset: b.asset_code, issuer: b.asset_issuer, balance: b.balance };
     });
 
-    return NextResponse.json({ success: true, funded: true, address, balances });
+    const savedTokens: unknown[] = Array.isArray(data?.token_balance) ? data.token_balance : [];
+    const importedBalances: StellarBalance[] = savedTokens
+      .filter(isManagedStellarToken)
+      .map((token) => {
+        const existing = balances.find((item) => item.asset === token.code && item.issuer === token.issuer);
+        return existing ?? { asset: token.code, issuer: token.issuer, balance: "0", custom: true };
+      });
+    for (const imported of importedBalances) {
+      if (!balances.some((item) => item.asset === imported.asset && item.issuer === imported.issuer)) balances.push(imported);
+    }
+
+    const managed = new Set(savedTokens.filter(isManagedStellarToken).map((token) => `${token.code}:${token.issuer}`));
+    const usdt0 = walletNetworks.stellar.tokens.USDT0.classicAsset;
+    const visibleBalances = balances.filter((item) => item.asset === "XLM" ||
+      (item.asset === usdt0.code && item.issuer === usdt0.issuer) ||
+      (item.issuer !== null && managed.has(`${item.asset}:${item.issuer}`)));
+
+    return NextResponse.json({ success: true, funded: true, address, balances: visibleBalances });
   } catch (e) {
     // Horizon returns 404 for an address that was never funded on this network
     if ((e as { response?: { status?: number } })?.response?.status === 404) {

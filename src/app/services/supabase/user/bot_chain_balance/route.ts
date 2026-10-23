@@ -2,25 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { Contract, JsonRpcProvider, formatEther, formatUnits, isAddress } from "ethers"; // ethers v6
 import { Security } from "@/firewall";
 import { BOT_CHAIN_PIE_TOKEN_ADDRESS, getBotChainPieBalance, supabaseServer } from "@/lib";
+import walletNetworks from "@/config/json_conf/wallet_networks.json";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // always read a fresh balance
 
-const BOT_CHAIN_ID = 677;
-const USDT_ADDRESS = "0xaBabc7Ddc03e501d190C676BF3d92ef0e6e87a3C";
-const ERC20_ABI = ["function balanceOf(address account) view returns (uint256)", "function decimals() view returns (uint8)"];
-
-// Public BOT Chain mainnet RPC. Optionally override it in .env.local with
-// BOT_CHAIN_RPC_URL (server-only, no NEXT_PUBLIC_ prefix) if you get a private
-// endpoint or run your own node later.
-const BOT_CHAIN_RPC_URL = process.env.BOT_CHAIN_RPC_URL || "https://rpc.botchain.ai";
+const botChainConfig = walletNetworks.bot_chain;
+const BOT_CHAIN_ID = botChainConfig.bridge.chainId;
+const USDT_ADDRESS = botChainConfig.bridge.usdtToken;
+const ERC20_ABI = botChainConfig.balanceConfig.erc20Abi;
+const BOT_CHAIN_RPC_URL = process.env.BOT_CHAIN_RPC_URL || botChainConfig.bridge.rpcUrl;
 
 // staticNetwork skips the extra "which chain are you?" call on every request
 const provider = new JsonRpcProvider(BOT_CHAIN_RPC_URL, BOT_CHAIN_ID, {
   staticNetwork: true,
 });
 const BOT_CHAIN_EXPLORER_ORIGIN = new URL(
-  process.env.BOT_CHAIN_EXPLORER_API_URL || "https://scan.botchain.ai/api",
+  process.env.BOT_CHAIN_EXPLORER_API_URL || botChainConfig.explorer.apiUrl,
 ).origin;
 
 async function fetchExplorerJson(path: string) {
@@ -72,19 +70,20 @@ async function getUsdtBalance(address: string): Promise<string> {
 export async function POST(params: NextRequest) {
   const auth = await Security(params);
   if (auth?.error) {
+    if (auth.error instanceof NextResponse) return auth.error;
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const { email } = await params.json();
+  const email = "email" in auth && typeof auth.email === "string" ? auth.email : "";
+  if (!email) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
   // Reading a balance only needs the PUBLIC address, so the private key is
   // never selected, decrypted or held in memory here.
   const { data, error } = await supabaseServer
     .from("tbl_wallet")
-    .select("wallet_address")
+    .select("wallet_address, token_balance")
     .eq("email", email)
-    // TODO: if this table holds both networks, filter by your network/chain column too
-    // .eq("network", "bot_chain")
+    .in("network", ["bot_chain", "otterpie_bot_chain"])
     .maybeSingle();
 
   if (error) {
@@ -106,16 +105,36 @@ export async function POST(params: NextRequest) {
     const balance = await getNativeBalance(address);
     const balances = [
       { asset: "BOT", issuer: null, balance },
-      { asset: "PIE", issuer: null, balance: await getPieBalance(address) },
-      { asset: "USDT", issuer: null, balance: await getUsdtBalance(address) },
+      { asset: "PIE", issuer: null, contract: BOT_CHAIN_PIE_TOKEN_ADDRESS, balance: await getPieBalance(address) },
+      { asset: "USDT", issuer: null, contract: USDT_ADDRESS, balance: await getUsdtBalance(address) },
     ];
+
+    const savedTokens = Array.isArray(data?.token_balance) ? data.token_balance : [];
+    const customTokens = savedTokens.filter((token: unknown) => token && typeof token === "object" &&
+      (token as { type?: unknown }).type === "evm" && isAddress((token as { address?: string }).address ?? ""));
+    const importedResults = await Promise.allSettled(customTokens.map(async (token: { address: string; symbol?: string; decimals?: number }) => {
+      const contract = new Contract(token.address, ERC20_ABI, provider);
+      const [rawBalance, decimals] = await Promise.all([
+        contract.getFunction("balanceOf").staticCall(address) as Promise<bigint>,
+        contract.getFunction("decimals").staticCall() as Promise<bigint>,
+      ]);
+      return {
+        asset: typeof token.symbol === "string" ? token.symbol : "ERC-20",
+        issuer: null,
+        balance: formatUnits(rawBalance, Number(decimals)),
+        decimals: Number(decimals),
+        contract: token.address,
+        custom: true,
+      };
+    }));
+    const importedBalances = importedResults.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
 
     // Same shape as the Stellar route so the dashboard can treat both alike
     return NextResponse.json({
       success: true,
-      funded: balances.some((item) => Number(item.balance) > 0),
+      funded: [...balances, ...importedBalances].some((item) => Number(item.balance) > 0),
       address,
-      balances,
+      balances: [...balances, ...importedBalances],
     });
   } catch (e) {
     console.error(e);

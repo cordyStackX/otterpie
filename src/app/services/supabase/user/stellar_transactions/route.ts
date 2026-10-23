@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { Horizon, StrKey } from "@stellar/stellar-sdk";
 import { Security } from "@/firewall";
 import { supabaseServer } from "@/lib";
+import walletNetworks from "@/config/json_conf/wallet_networks.json";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // always read fresh transactions
 
-const server = new Horizon.Server(
-  process.env.STELLAR_HORIZON_URL || "https://horizon.stellar.org"
-);
+const stellarConfig = walletNetworks.stellar;
+const usdt0 = stellarConfig.tokens.USDT0.classicAsset;
+const server = new Horizon.Server(process.env.STELLAR_HORIZON_URL || stellarConfig.swapConfig.horizonUrl);
 
 const HORIZON_PAGE_SIZE = 200; // Horizon's max per page
 const MAX_HORIZON_PAGES = 5; // safety cap while finding 10 matching transactions
@@ -96,6 +97,43 @@ export async function POST(params: NextRequest) {
           if (transactions.length >= TRANSACTION_PAGE_SIZE) {
             hasMore = recordIndex < page.records.length - 1 || page.records.length === HORIZON_PAGE_SIZE;
             break;
+          }
+          continue;
+        }
+
+        // Soroban USDT0 OFT activity is exposed as an invoke-host-function
+        // payment record with SAC balance changes. Tag only burns from this
+        // wallet, transfers into the configured OFT, and mints to this wallet.
+        if (r.type === "invoke_host_function" && Array.isArray(r.asset_balance_changes)) {
+          const changes = r.asset_balance_changes as Array<Record<string, unknown>>;
+          const bridgeChange = changes.find((change) => {
+            if (change.asset_type !== "credit_alphanum4" && change.asset_type !== "credit_alphanum12") return false;
+            if (change.asset_code !== usdt0.code || change.asset_issuer !== usdt0.issuer) return false;
+            const from = typeof change.from === "string" ? change.from : "";
+            const to = typeof change.to === "string" ? change.to : "";
+            return (change.type === "burn" && from === address) ||
+              (change.type === "transfer" && from === address && to === stellarConfig.tokens.USDT0.oftContract) ||
+              (change.type === "mint" && to === address);
+          });
+
+          if (bridgeChange && typeof bridgeChange.amount === "string") {
+            const received = bridgeChange.type === "mint";
+            transactions.push({
+              id: r.id,
+              hash: r.transaction_hash ?? r.id,
+              date: r.created_at,
+              amount: bridgeChange.amount,
+              asset: usdt0.code,
+              from: typeof bridgeChange.from === "string" ? bridgeChange.from : null,
+              to: typeof bridgeChange.to === "string" ? bridgeChange.to : null,
+              direction: received ? "received" : "sent",
+              type: "bridge_transfer",
+              status: "Completed",
+            });
+            if (transactions.length >= TRANSACTION_PAGE_SIZE) {
+              hasMore = recordIndex < page.records.length - 1 || page.records.length === HORIZON_PAGE_SIZE;
+              break;
+            }
           }
           continue;
         }

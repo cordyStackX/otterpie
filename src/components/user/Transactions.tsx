@@ -50,7 +50,7 @@ const explorerName = (network: string) =>
 export default function Transactions({ email, network } : TransactionProps) {
   const networkConfig = getWalletNetworkConfig(network);
   const transactionAssets = networkConfig?.transactionAssets ?? EMPTY_TRANSACTION_ASSETS;
-  const availableFilters = networkConfig?.family === "bot_chain"
+  const availableFilters = networkConfig?.family === "bot_chain" || networkConfig?.family === "stellar"
     ? filters
     : filters.filter((item) => item !== "Bridge");
   const [transactions, setTransactions] = useState<Transaction[]>([]);

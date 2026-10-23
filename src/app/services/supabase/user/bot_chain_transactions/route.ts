@@ -12,11 +12,11 @@ export const dynamic = "force-dynamic"; // always read fresh transactions
 // them from the BOT Chain block explorer's Etherscan-style API:
 //   <base>?module=account&action=txlist&address=0x...
 // Override the base in .env.local with BOT_CHAIN_EXPLORER_API_URL if needed.
-const EXPLORER_API_URL =
-  process.env.BOT_CHAIN_EXPLORER_API_URL || "https://scan.botchain.ai/api";
-const BDEX_V2_ROUTER = "0x1414ed29fdfd322c3c0a830330ed982e2d629e76";
-const BOT_CHAIN_USDT_TOKEN_ADDRESS = walletNetworks.bot_chain.bridge.usdtToken;
-const BOT_CHAIN_BRIDGE_ROUTER = walletNetworks.bot_chain.bridge.router;
+const botChainConfig = walletNetworks.bot_chain;
+const EXPLORER_API_URL = process.env.BOT_CHAIN_EXPLORER_API_URL || botChainConfig.explorer.apiUrl;
+const BDEX_V2_ROUTER = botChainConfig.swapConfig.routerAddress;
+const BOT_CHAIN_USDT_TOKEN_ADDRESS = botChainConfig.bridge.usdtToken;
+const BOT_CHAIN_BRIDGE_ROUTER = botChainConfig.bridge.router;
 
 const EXPLORER_PAGE_SIZE = 50;
 const MAX_EXPLORER_PAGES = 5; // cap work per request while searching for 10 transfers

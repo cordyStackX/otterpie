@@ -24,6 +24,16 @@ function toOrigin(url: string | null): string | null {
     }
 }
 
+function forwardedRequestOrigin(req: NextRequest): string | null {
+    const forwardedHost = req.headers.get("x-forwarded-host")?.split(",")[0].trim();
+    const host = forwardedHost || req.headers.get("host");
+    if (!host) return null;
+    const forwardedProto = req.headers.get("x-forwarded-proto")?.split(",")[0].trim();
+    const proto = forwardedProto || req.nextUrl.protocol.replace(":", "");
+    if (proto !== "http" && proto !== "https") return null;
+    return toOrigin(`${proto}://${host}`);
+}
+
 function normalizeIp(req: NextRequest): string {
     const forwarded = req.headers.get("x-forwarded-for");
     if (forwarded) return forwarded.split(",")[0].trim();
@@ -39,6 +49,7 @@ function isAllowedRequestOrigin(req: NextRequest): boolean {
         "http://localhost:3000",
         "https://localhost:3000",
         req.nextUrl.origin,
+        forwardedRequestOrigin(req),
     ].filter(Boolean) as string[]);
 
     if (requestOrigin && allowedOrigins.has(requestOrigin)) return true;

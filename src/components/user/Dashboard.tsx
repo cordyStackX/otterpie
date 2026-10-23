@@ -30,7 +30,6 @@ const ranges = [
 ] as const;
 
 type Range = (typeof ranges)[number]["key"];
-type SwapDirection = "PIE_TO_BOT" | "BOT_TO_PIE" | "BOT_TO_USDT" | "USDT_TO_BOT";
 
 // Colors cycle through primary/secondary at different opacities so any number
 // of user-made categories stay distinguishable within the two-color palette.
@@ -530,7 +529,6 @@ export default function Dashboard({ email, network }: DashboardProps) {
   const [selected, setSelected] = useState<Category | null>(null);
   const [incoming, setIncoming] = useState<Incoming[]>([]);
   const [selectedAsset, setSelectedAsset] = useState<"BOT" | "PIE">("PIE");
-  const [swapDirection, setSwapDirection] = useState<SwapDirection | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const networkConfig = getWalletNetworkConfig(network);
 
@@ -877,25 +875,13 @@ export default function Dashboard({ email, network }: DashboardProps) {
               </button>
             )}
             <div className="flex w-full gap-2">
-              {!isPieSelected && (
-                <button
-                  type="button"
-                  onClick={() => setSelected({ id: "__wallet__", name: "wallet", amount: nativeBalance })}
-                  disabled={loadingBalance || (nativeBalance <= 0 && !(walletData.find((slice) => slice.name === "USDT")?.amount ?? 0)) || !activeSymbol}
-                  className="min-w-0 flex-1 rounded-md border border-primary/30 px-2 py-2 text-xs font-medium text-primary outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
+              {networkConfig?.routes.swap && (
+                <Link
+                  href="/user/balance"
+                  className="flex min-w-0 flex-1 items-center justify-center rounded-md border border-primary/30 px-2 py-2 text-xs font-medium text-primary outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary/40 sm:text-sm"
                 >
-                  Withdraw
-                </button>
-              )}
-              {isBotChainNetwork(network) && (
-                <button
-                  type="button"
-                  onClick={() => setSwapDirection(isPieSelected ? "PIE_TO_BOT" : "BOT_TO_PIE")}
-                  disabled={loadingBalance || nativeBalance <= 0}
-                  className="min-w-0 flex-1 rounded-md border border-emerald-400/50 bg-emerald-500/15 px-2 py-2 text-xs font-semibold text-emerald-300 outline-none transition-colors hover:bg-emerald-500/25 focus-visible:ring-2 focus-visible:ring-emerald-300/50 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
-                >
-                  {isPieSelected ? "Swap PIE to BOT" : "Swap"}
-                </button>
+                  Swap / Withdraw tokens
+                </Link>
               )}
             </div>
           </div>
@@ -1159,248 +1145,6 @@ export default function Dashboard({ email, network }: DashboardProps) {
           }
         />
       )}
-      {swapDirection && (
-        <SwapPreviewDialog
-          key={swapDirection}
-          initialDirection={swapDirection}
-          allowDirectionSelect={!isPieSelected}
-          balances={Object.fromEntries(walletData.map((slice) => [slice.name, slice.amount]))}
-          email={email}
-          onSwapped={async () => {
-            const balanceRoute = getWalletNetworkConfig(network)?.routes.balance;
-            if (!balanceRoute) return;
-            const response = await Fetch_to("POST", balanceRoute, { email }, undefined, 1);
-            if (response.success) {
-              setWalletData(toSlices(response.data.balances));
-              setLastUpdated(new Date());
-            }
-          }}
-          onClose={() => setSwapDirection(null)}
-        />
-      )}
     </div>
-  );
-}
-
-function SwapPreviewDialog({
-  initialDirection,
-  allowDirectionSelect,
-  balances,
-  onSwapped,
-  onClose,
-}: {
-  initialDirection: SwapDirection;
-  allowDirectionSelect: boolean;
-  balances: Record<string, number>;
-  email: string;
-  onSwapped: () => Promise<void>;
-  onClose: () => void;
-}) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const [direction, setDirection] = useState<SwapDirection>(initialDirection);
-  const [amount, setAmount] = useState("");
-  const [slippage, setSlippage] = useState("1");
-  const [password, setPassword] = useState("");
-  const [quote, setQuote] = useState<{ amountOut: string; minimumReceived: string; availableBalance: string; slippage: number } | null>(null);
-  const [busy, setBusy] = useState<"quote" | "swap" | null>(null);
-  const [error, setError] = useState("");
-  const [txHash, setTxHash] = useState("");
-  const formatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 7 });
-  const from = direction === "PIE_TO_BOT" ? "PIE" : direction === "USDT_TO_BOT" ? "USDT" : "BOT";
-  const to = direction === "PIE_TO_BOT" || direction === "USDT_TO_BOT" ? "BOT" : direction === "BOT_TO_USDT" ? "USDT" : "PIE";
-  const availableBalance = quote ? Number(quote.availableBalance) : balances[from] ?? 0;
-  const canQuote = Number.isFinite(Number(amount)) && Number(amount) > 0 && Number(amount) <= availableBalance;
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (dialog && !dialog.open) dialog.showModal();
-  }, []);
-
-  const requestQuote = async () => {
-    setError("");
-    setQuote(null);
-    setBusy("quote");
-    try {
-      const response = await Fetch_to("POST", routes.swap, {
-        action: "quote",
-        direction,
-        amount: amount.trim(),
-        slippage: Number(slippage),
-      }, undefined, 1);
-      if (!response.success) throw new Error(response.message || "Could not get a swap quote.");
-      const result = response.data as { quote?: { amountOut: string; minimumReceived: string; availableBalance: string; slippage: number } };
-      if (!result.quote) throw new Error("The swap service returned an invalid quote.");
-      setQuote(result.quote);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not get a swap quote.");
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const submitSwap = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!quote) return;
-    if (!password) {
-      setError("Enter your account password to confirm this swap.");
-      return;
-    }
-    setError("");
-    setBusy("swap");
-    try {
-      const response = await Fetch_to("POST", routes.swap, {
-        action: "swap",
-        direction,
-        amount: amount.trim(),
-        slippage: quote.slippage,
-        password,
-      }, undefined, 1);
-      if (!response.success) throw new Error(response.message || "The swap could not be submitted.");
-      const result = response.data as { txHash?: string };
-      setTxHash(result.txHash || "");
-      setPassword("");
-      await onSwapped();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "The swap could not be submitted.");
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  return (
-    <dialog
-      ref={dialogRef}
-      aria-labelledby="swap-preview-title"
-      onClose={onClose}
-      onCancel={(event) => {
-        if (busy) event.preventDefault();
-      }}
-      onClick={(event) => {
-        if (!busy && event.target === dialogRef.current) dialogRef.current?.close();
-      }}
-      className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-foreground/10 bg-background p-0 text-foreground shadow-xl backdrop:bg-foreground/30 backdrop:backdrop-blur-[2px]"
-    >
-      <form onSubmit={submitSwap} className="p-6">
-        <div className="flex items-start justify-between gap-4">
-          <h2 id="swap-preview-title" className="text-lg font-semibold tracking-tight">Swap {from} to {to}</h2>
-          <button
-            type="button"
-            onClick={() => dialogRef.current?.close()}
-            disabled={busy !== null}
-            aria-label="Close"
-            className="-mr-2 -mt-1 flex h-8 w-8 items-center justify-center rounded-md text-foreground/60 outline-none transition-colors hover:bg-foreground/5 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/40"
-          >
-            <span aria-hidden="true">×</span>
-          </button>
-        </div>
-        {allowDirectionSelect && (
-          <fieldset className="mt-5">
-            <legend className="text-sm font-medium">Swap pair</legend>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              {([
-                ["BOT_TO_PIE", "BOT → PIE"],
-                ["BOT_TO_USDT", "BOT → USDT"],
-                ["USDT_TO_BOT", "USDT → BOT"],
-              ] as const).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => { setDirection(value); setAmount(""); setQuote(null); setError(""); setTxHash(""); }}
-                  aria-pressed={direction === value}
-                  disabled={busy !== null || Boolean(txHash)}
-                  className={`rounded-md border px-2 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50 ${direction === value ? "border-primary/50 bg-primary/10 text-primary" : "border-foreground/15 text-foreground/65 hover:bg-foreground/5"}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-        )}
-        <div className="mt-5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <label htmlFor="swap-amount" className="text-sm font-medium">You pay ({from})</label>
-          <span className="text-xs tabular-nums text-foreground/55">Balance: {formatter.format(availableBalance)} {from}</span>
-        </div>
-        <input
-          id="swap-amount"
-          type="number"
-          min="0"
-          max={availableBalance}
-          step="any"
-          value={amount}
-          onChange={(event) => { setAmount(event.target.value); setQuote(null); setError(""); }}
-          placeholder="0"
-          disabled={busy !== null || Boolean(txHash)}
-          className="mt-1.5 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/25"
-        />
-        <label htmlFor="swap-slippage" className="mt-4 block text-sm font-medium">Max slippage (%)</label>
-        <input
-          id="swap-slippage"
-          type="number"
-          min="0.1"
-          max="5"
-          step="0.1"
-          value={slippage}
-          onChange={(event) => { setSlippage(event.target.value); setQuote(null); }}
-          disabled={busy !== null || Boolean(txHash)}
-          className="mt-1.5 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/25 disabled:opacity-50"
-        />
-        {quote && (
-          <div className="mt-4 rounded-lg bg-foreground/5 px-4 py-3">
-            <p className="text-xs text-foreground/55">Estimated output</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums">{formatter.format(Number(quote.amountOut))} {to}</p>
-            <p className="mt-1 text-xs text-foreground/50">Minimum received: {formatter.format(Number(quote.minimumReceived))} {to} · BDEX V2 fee: 0.3%</p>
-          </div>
-        )}
-        <p className="mt-4 rounded-md border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-xs text-yellow-200">
-          Real BOT Chain mainnet swap. BOT is also needed for gas. Review the quote and minimum output before confirming; swaps cannot be reversed.
-        </p>
-        {!txHash && !quote && (
-          <button
-            type="button"
-            onClick={requestQuote}
-            disabled={!canQuote || busy !== null || !Number.isFinite(Number(slippage)) || Number(slippage) < 0.1 || Number(slippage) > 5}
-            className="mt-5 w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-background outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {busy === "quote" ? "Getting quote…" : "Get swap quote"}
-          </button>
-        )}
-        {quote && !txHash && (
-          <>
-            <label htmlFor="swap-password" className="mt-4 block text-sm font-medium">Confirm with your account password</label>
-            <input
-              id="swap-password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => { setPassword(event.target.value); setError(""); }}
-              disabled={busy !== null}
-              required
-              className="mt-1.5 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/25 disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={busy !== null || !password}
-              className="mt-4 w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-background outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {busy === "swap" ? "Submitting swap…" : `Confirm swap ${from} to ${to}`}
-            </button>
-          </>
-        )}
-        {txHash && (
-          <div className="mt-4 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">
-            Swap confirmed. Transaction: <span className="break-all font-mono">{txHash}</span>
-          </div>
-        )}
-        {error && <p role="alert" className="mt-3 text-sm text-red-500">{error}</p>}
-        <button
-          type="button"
-          onClick={() => dialogRef.current?.close()}
-          disabled={busy !== null}
-          className="mt-4 w-full rounded-md border border-foreground/15 px-4 py-2.5 text-sm font-medium text-foreground/80 outline-none transition-colors hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50"
-        >
-          {txHash ? "Done" : "Cancel"}
-        </button>
-      </form>
-    </dialog>
   );
 }

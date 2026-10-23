@@ -12,37 +12,27 @@ import bcrypt from "bcrypt";
 import { supabaseServer } from "@/lib";
 import { decryptText, rateLimit, Security } from "@/firewall";
 import { BOT_CHAIN_PIE_TOKEN_ADDRESS } from "@/lib";
+import walletNetworks from "@/config/json_conf/wallet_networks.json";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const CHAIN_ID = 677;
-const ROUTER_ADDRESS = "0x1414eD29FdFD322c3c0a830330ed982E2D629e76";
-const WBOT_ADDRESS = "0xD5452816194a3784dBa983426cCe7c122F4abd30";
-const USDT_ADDRESS = "0xaBabc7Ddc03e501d190C676BF3d92ef0e6e87a3C";
-const PIE_BOT_PAIR_ADDRESS = "0xa7a7796b5ec5ea2fdec1f94a3e71fa027f7cf45b";
+const botChainConfig = walletNetworks.bot_chain;
+const swapConfig = botChainConfig.swapConfig;
+const CHAIN_ID = botChainConfig.bridge.chainId;
+const ROUTER_ADDRESS = swapConfig.routerAddress;
+const WBOT_ADDRESS = swapConfig.wbotAddress;
+const USDT_ADDRESS = swapConfig.usdtAddress;
+const PIE_BOT_PAIR_ADDRESS = swapConfig.pieBotPairAddress;
 const provider = new JsonRpcProvider(
-	process.env.BOT_CHAIN_RPC_URL || "https://rpc.botchain.ai",
+	process.env.BOT_CHAIN_RPC_URL || botChainConfig.bridge.rpcUrl,
 	CHAIN_ID,
 	{ staticNetwork: true },
 );
 
-const routerAbi = [
-	"function getAmountsOut(uint amountIn, address[] memory path) view returns (uint[] memory amounts)",
-	"function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline) payable returns (uint[] memory amounts)",
-	"function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) returns (uint[] memory amounts)",
-];
-const tokenAbi = [
-	"function balanceOf(address account) view returns (uint256)",
-	"function decimals() view returns (uint8)",
-	"function allowance(address owner, address spender) view returns (uint256)",
-	"function approve(address spender, uint256 amount) returns (bool)",
-];
-const pairAbi = [
-	"function token0() view returns (address)",
-	"function token1() view returns (address)",
-	"function getReserves() view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)",
-];
+const routerAbi = swapConfig.routerAbi;
+const tokenAbi = swapConfig.tokenAbi;
+const pairAbi = swapConfig.pairAbi;
 
 type SwapDirection = "PIE_TO_BOT" | "BOT_TO_PIE" | "BOT_TO_USDT" | "USDT_TO_BOT";
 
