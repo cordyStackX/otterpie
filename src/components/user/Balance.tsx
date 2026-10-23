@@ -516,7 +516,7 @@ function EvmSwapDialog({ route, assets, onClose, onSwapped }: {
     <form onSubmit={submitSwap} className="p-6">
       <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-medium text-primary">BOT Chain · DEX route</p><h2 className="mt-1 text-lg font-semibold">Swap tokens</h2></div><button type="button" disabled={busy !== null} onClick={() => dialogRef.current?.close()} className="text-2xl leading-none text-foreground/50">×</button></div>
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <label className="text-xs font-medium text-foreground/65">You pay
+        <label className="text-xs font-medium text-foreground/65"><span className="flex items-center justify-between gap-2"><span>You pay</span><span className="text-right font-normal text-foreground/45">Balance: {fmt.format(Number(from?.balance ?? 0))} {from?.symbol ?? ""}</span></span>
           <select value={fromKey} onChange={(event) => changeFrom(event.target.value)} disabled={busy !== null || Boolean(txHash)} className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm text-foreground">
             {positiveAssets.map((asset) => <option key={keyOf(asset)} value={keyOf(asset)}>{label(asset)} · {fmt.format(Number(asset.balance))}</option>)}
           </select>
@@ -600,7 +600,7 @@ function StellarSwapDialog({ route, assets, onClose, onSwapped }: {
     <form onSubmit={submitSwap} className="p-6">
       <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-medium text-primary">Stellar path payment</p><h2 className="mt-1 text-lg font-semibold">Swap assets</h2></div><button type="button" disabled={busy !== null} onClick={() => dialogRef.current?.close()} className="text-2xl leading-none text-foreground/50">×</button></div>
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <label className="text-xs font-medium text-foreground/65">You pay
+        <label className="text-xs font-medium text-foreground/65"><span className="flex items-center justify-between gap-2"><span>You pay</span><span className="text-right font-normal text-foreground/45">Balance: {fmt.format(Number(selectedSource?.balance ?? 0))} {selectedSource?.code ?? ""}</span></span>
           <select value={source} onChange={(event) => { const next = event.target.value; setSource(next); if (destination === next) setDestination(tradeable.find((asset) => sourceKey(asset) !== next) ? sourceKey(tradeable.find((asset) => sourceKey(asset) !== next)!) : ""); setQuote(null); setError(""); }} disabled={busy !== null || Boolean(txHash)} className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm text-foreground">
             {positiveAssets.map((asset) => <option key={sourceKey(asset)} value={sourceKey(asset)}>{asset.code} · {fmt.format(Number(asset.balance))}</option>)}
           </select>
