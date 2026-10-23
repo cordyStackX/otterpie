@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic"; // always read fresh transactions
 // Override the base in .env.local with BOT_CHAIN_EXPLORER_API_URL if needed.
 const botChainConfig = walletNetworks.bot_chain;
 const EXPLORER_API_URL = process.env.BOT_CHAIN_EXPLORER_API_URL || botChainConfig.explorer.apiUrl;
-const BDEX_V2_ROUTER = botChainConfig.swapConfig.routerAddress;
+const BDEX_V2_ROUTER = botChainConfig.swapConfig.routerAddress.toLowerCase();
 const BOT_CHAIN_USDT_TOKEN_ADDRESS = botChainConfig.bridge.usdtToken;
 const BOT_CHAIN_BRIDGE_ROUTER = botChainConfig.bridge.router;
 
