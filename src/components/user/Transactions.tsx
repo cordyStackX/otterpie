@@ -151,10 +151,16 @@ export default function Transactions({ email, network } : TransactionProps) {
         const swaps: Transaction[] = [];
         const bridges: Transaction[] = [];
         for (const candidate of swapCandidates) {
-          const tokenLeg = mappedRecords.find((record) =>
-            record.hash === candidate.hash && record.asset !== "BOT" && record.sourceType !== "swap_candidate"
+          const tokenLegs = mappedRecords.filter((record) =>
+            record.hash === candidate.hash && record.asset !== "BOT" && record.sourceType === "transfer"
           );
-          if (!tokenLeg) {
+          const sentToken = tokenLegs.find((record) => record.direction === "sent");
+          const receivedToken = tokenLegs.find((record) => record.direction === "received");
+          // A native BOT input is represented by the value sent to the router;
+          // a native BOT output may only appear as a zero-value router call.
+          const input = sentToken ?? (candidate.amount > 0 ? candidate : undefined);
+          const output = receivedToken ?? (sentToken && candidate.amount === 0 ? candidate : undefined);
+          if (!input || !output) {
             // Custom tokens are managed per wallet and are not part of the
             // fixed transaction asset queries. Keep the router call visible
             // as a generic swap instead of dropping a valid DEX transaction.
@@ -173,25 +179,22 @@ export default function Transactions({ email, network } : TransactionProps) {
             });
             continue;
           }
-
-          const tokenReceived = tokenLeg.type === "Receive";
-          const input = tokenReceived ? candidate : tokenLeg;
-          const output = tokenReceived ? tokenLeg : candidate;
           pairedHashes.add(candidate.hash);
           swaps.push({
             id: `swap-${candidate.hash}`,
             name: `${input.asset} → ${output.asset}`,
             address: candidate.address,
             type: "Swap",
-            status: candidate.status === "Completed" && tokenLeg.status === "Completed" ? "Completed" : "Failed",
+            status: candidate.status === "Completed" && input.status === "Completed" && output.status === "Completed" ? "Completed" : "Failed",
             amount: output.amount,
             asset: output.asset,
             date: candidate.date,
             hash: candidate.hash,
             amountIn: input.amount,
             assetIn: input.asset,
-            // For PIE → BOT, the explorer's normal tx list omits the native
-            // BOT output (it is an internal value transfer), so do not invent it.
+            // For token → native BOT, the explorer's normal tx list omits the
+            // native output (it is an internal value transfer), so show its
+            // asset but do not invent an output amount.
             amountOut: output.sourceType === "swap_candidate" && output.amount === 0 ? undefined : output.amount,
             assetOut: output.asset,
           });
