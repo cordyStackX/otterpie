@@ -37,6 +37,11 @@
     "swapConfig": {
       "routerAddress": "0x1414eD29FdFD322c3c0a830330ed982E2D629e76",
       "wbotAddress": "0xD5452816194a3784dBa983426cCe7c122F4abd30",
+      "v3": {
+        "routerAddress": "0x07032d47A1b9f8460cBeE9dC17c1d3E438693929",
+        "quoterAddress": "0x034A705b36067cff99ABf5C662Be881cBd8d0176",
+        "feeTiers": [500, 3000, 10000]
+      },
       "usdtAddress": "0xaBabc7Ddc03e501d190C676BF3d92ef0e6e87a3C",
       "pieBotPairAddress": "0xa7a7796b5ec5ea2fdec1f94a3e71fa027f7cf45b",
       "routerAbi": [

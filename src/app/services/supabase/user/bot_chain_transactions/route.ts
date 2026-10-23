@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic"; // always read fresh transactions
 const botChainConfig = walletNetworks.bot_chain;
 const EXPLORER_API_URL = process.env.BOT_CHAIN_EXPLORER_API_URL || botChainConfig.explorer.apiUrl;
 const BDEX_V2_ROUTER = botChainConfig.swapConfig.routerAddress.toLowerCase();
+const BDEX_V3_ROUTER = botChainConfig.swapConfig.v3.routerAddress.toLowerCase();
 const BOT_CHAIN_USDT_TOKEN_ADDRESS = botChainConfig.bridge.usdtToken;
 const BOT_CHAIN_BRIDGE_ROUTER = botChainConfig.bridge.router;
 
@@ -238,7 +239,7 @@ export async function POST(params: NextRequest) {
         const sent = t.from?.toLowerCase() === me;
         const succeeded = t.isError === undefined || t.isError === "0";
         const hasValue = t.value !== "0" && t.value !== "";
-        const isBDEXRouterCall = sent && t.to?.toLowerCase() === BDEX_V2_ROUTER;
+        const isBDEXRouterCall = sent && [BDEX_V2_ROUTER, BDEX_V3_ROUTER].includes(t.to?.toLowerCase() ?? "");
         const isBridgeRouterCall = sent && t.to?.toLowerCase() === BOT_CHAIN_BRIDGE_ROUTER.toLowerCase();
 
         if ((received || sent) && (hasValue || isBDEXRouterCall || isBridgeRouterCall)) {

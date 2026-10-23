@@ -154,7 +154,25 @@ export default function Transactions({ email, network } : TransactionProps) {
           const tokenLeg = mappedRecords.find((record) =>
             record.hash === candidate.hash && record.asset !== "BOT" && record.sourceType !== "swap_candidate"
           );
-          if (!tokenLeg) continue;
+          if (!tokenLeg) {
+            // Custom tokens are managed per wallet and are not part of the
+            // fixed transaction asset queries. Keep the router call visible
+            // as a generic swap instead of dropping a valid DEX transaction.
+            pairedHashes.add(candidate.hash);
+            swaps.push({
+              id: `swap-${candidate.hash}`,
+              name: "BOT Chain DEX swap",
+              address: candidate.address,
+              type: "Swap",
+              status: candidate.status,
+              amount: candidate.amount,
+              asset: candidate.asset,
+              date: candidate.date,
+              hash: candidate.hash,
+              direction: "sent",
+            });
+            continue;
+          }
 
           const tokenReceived = tokenLeg.type === "Receive";
           const input = tokenReceived ? candidate : tokenLeg;

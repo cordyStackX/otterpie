@@ -468,7 +468,7 @@ function EvmSwapDialog({ route, assets, onClose, onSwapped }: {
   const [amount, setAmount] = useState("");
   const [slippage, setSlippage] = useState("1");
   const [password, setPassword] = useState("");
-  const [quote, setQuote] = useState<{ amountOut: string; minimumReceived: string; availableBalance: string } | null>(null);
+  const [quote, setQuote] = useState<{ amountOut: string; minimumReceived: string; availableBalance: string; protocol?: "v2" | "v3"; fees?: number[] } | null>(null);
   const [busy, setBusy] = useState<"quote" | "swap" | null>(null);
   const [error, setError] = useState("");
   const [txHash, setTxHash] = useState("");
@@ -486,7 +486,7 @@ function EvmSwapDialog({ route, assets, onClose, onSwapped }: {
     try {
       const response = await Fetch_to("POST", route, { action: "quote", from: payload(from), to: payload(to), amount: amount.trim(), slippage: Number(slippage) }, undefined, 1);
       if (!response.success) throw new Error(response.message || "No swap quote is available for this pair.");
-      const result = response.data as { quote?: { amountOut: string; minimumReceived: string; availableBalance: string } };
+      const result = response.data as { quote?: { amountOut: string; minimumReceived: string; availableBalance: string; protocol?: "v2" | "v3"; fees?: number[] } };
       if (!result.quote) throw new Error("The swap service returned an invalid quote.");
       setQuote(result.quote);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not get a swap quote."); }
@@ -533,7 +533,7 @@ function EvmSwapDialog({ route, assets, onClose, onSwapped }: {
       <label className="mt-4 block text-xs font-medium text-foreground/65">Max slippage (%)
         <input type="number" min="0.1" max="5" step="0.1" value={slippage} onChange={(event) => { setSlippage(event.target.value); setQuote(null); }} disabled={busy !== null || Boolean(txHash)} className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm text-foreground" />
       </label>
-      {quote && <div className="mt-4 rounded-lg bg-foreground/5 p-3"><p className="text-xs text-foreground/50">Estimated output</p><p className="mt-1 text-lg font-semibold">{quote.amountOut} {to?.symbol}</p><p className="text-xs text-foreground/50">Minimum received: {quote.minimumReceived} {to?.symbol}</p></div>}
+      {quote && <div className="mt-4 rounded-lg bg-foreground/5 p-3"><p className="text-xs text-foreground/50">Estimated output · {quote.protocol === "v3" ? `BDEX V3${quote.fees?.length ? ` · ${quote.fees.map((fee) => `${(fee / 10_000).toFixed(2)}%`).join(" / ")} fee${quote.fees.length > 1 ? "s" : ""}` : ""}` : "BDEX V2"}</p><p className="mt-1 text-lg font-semibold">{quote.amountOut} {to?.symbol}</p><p className="text-xs text-foreground/50">Minimum received: {quote.minimumReceived} {to?.symbol}</p></div>}
       {!quote && !txHash && <button type="button" onClick={() => void requestQuote()} disabled={!from || !to || Number(amount) <= 0 || busy !== null || Number(slippage) < 0.1 || Number(slippage) > 5} className="mt-5 w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-background disabled:opacity-50">{busy === "quote" ? "Getting live quote…" : "Get swap quote"}</button>}
       {quote && !txHash && <><label className="mt-4 block text-xs font-medium text-foreground/65">Confirm with your account password<input type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} disabled={busy !== null} className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm text-foreground" /></label><button type="submit" disabled={!password || busy !== null} className="mt-4 w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-background disabled:opacity-50">{busy === "swap" ? "Submitting swap…" : "Confirm BOT Chain swap"}</button></>}
       {txHash && <p className="mt-4 break-all rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-400">Swap confirmed: {txHash}</p>}

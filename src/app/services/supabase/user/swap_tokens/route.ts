@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Contract, JsonRpcProvider, Wallet, formatUnits, isAddress, parseUnits } from "ethers";
+import { Contract, JsonRpcProvider, Wallet, formatUnits, isAddress, parseUnits, solidityPacked } from "ethers";
 import bcrypt from "bcrypt";
 import { BOT_CHAIN_PIE_TOKEN_ADDRESS, supabaseServer } from "@/lib";
 import { decryptText, rateLimit, Security } from "@/firewall";
@@ -14,6 +14,7 @@ const CHAIN_ID = botChainConfig.bridge.chainId;
 const ROUTER_ADDRESS = swapConfig.routerAddress;
 const WBOT_ADDRESS = swapConfig.wbotAddress;
 const USDT_ADDRESS = swapConfig.usdtAddress;
+const V3_CONFIG = swapConfig.v3;
 const provider = new JsonRpcProvider(process.env.BOT_CHAIN_RPC_URL || botChainConfig.bridge.rpcUrl, CHAIN_ID, { staticNetwork: true });
 const routerAbi = [
   "function getAmountsOut(uint amountIn, address[] memory path) view returns (uint[] memory amounts)",
@@ -27,8 +28,29 @@ const tokenAbi = [
   "function allowance(address owner, address spender) view returns (uint256)",
   "function approve(address spender, uint256 amount) returns (bool)",
 ];
+const quoterV2Abi = [
+  "function quoteExactInputSingle((address tokenIn,address tokenOut,uint256 amountIn,uint24 fee,uint160 sqrtPriceLimitX96) params) returns (uint256 amountOut,uint160 sqrtPriceX96After,uint32 initializedTicksCrossed,uint256 gasEstimate)",
+];
+const v3RouterAbi = [
+  "function exactInputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 deadline,uint256 amountIn,uint256 amountOutMinimum,uint160 sqrtPriceLimitX96) params) payable returns (uint256 amountOut)",
+  "function exactInput((bytes path,address recipient,uint256 deadline,uint256 amountIn,uint256 amountOutMinimum) params) payable returns (uint256 amountOut)",
+];
+const wbotAbi = [
+  ...tokenAbi,
+  "function deposit() payable",
+  "function withdraw(uint256 amount)",
+];
 // type TokenRequest = { symbol: string; address: string | null };
 type TokenInfo = { symbol: string; address: string | null; decimals: number };
+type SwapQuote = {
+  amountIn: bigint;
+  amountOut: bigint;
+  minimum: bigint;
+  balance: bigint;
+  path: string[];
+  protocol: "v2" | "v3";
+  fees: number[];
+};
 
 function jsonError(error: string, status = 400) {
   return NextResponse.json({ success: false, error }, { status });
@@ -67,17 +89,143 @@ async function quote(input: TokenInfo, output: TokenInfo, amount: string, wallet
   const amountIn = parseUnits(amount, input.decimals);
   if (amountIn <= BigInt(0)) throw new Error("Enter an amount greater than zero.");
   const path = routeFor(input, output);
-  const router = new Contract(ROUTER_ADDRESS, routerAbi, provider);
-  const amounts = await router.getFunction("getAmountsOut").staticCall(amountIn, path) as bigint[];
-  const amountOut = amounts[amounts.length - 1];
-  if (amounts.length < 2 || amountOut <= BigInt(0)) throw new Error("No usable BOT Chain liquidity route exists for this pair.");
+  const [v2Result, v3Result] = await Promise.all([
+    (async () => {
+      try {
+        const router = new Contract(ROUTER_ADDRESS, routerAbi, provider);
+        const amounts = await router.getFunction("getAmountsOut").staticCall(amountIn, path) as bigint[];
+        const amountOut = amounts[amounts.length - 1];
+        return amounts.length >= 2 && amountOut > BigInt(0)
+          ? { amountOut, protocol: "v2" as const, fees: [] as number[] }
+          : null;
+      } catch {
+        return null;
+      }
+    })(),
+    quoteV3(path, amountIn),
+  ]);
+  const bestRoute = [v2Result, v3Result].filter((result): result is NonNullable<typeof result> => result !== null)
+    .sort((a, b) => a.amountOut === b.amountOut ? 0 : a.amountOut > b.amountOut ? -1 : 1)[0];
+  if (!bestRoute) throw new Error("No active BDEX V2 or V3 liquidity route exists for this pair.");
+  const amountOut = bestRoute.amountOut;
   const balance = input.address
     ? BigInt(await new Contract(input.address, tokenAbi, provider).getFunction("balanceOf").staticCall(walletAddress))
     : await provider.getBalance(walletAddress);
   if (amountIn > balance) throw new Error(`Insufficient ${input.symbol} balance.`);
   const minimum = amountOut * BigInt(Math.floor((100 - slippage) * 100)) / BigInt(10_000);
   if (minimum <= BigInt(0)) throw new Error("The minimum receive amount is too small for the selected slippage.");
-  return { amountIn, amountOut, minimum, balance, path };
+  return { amountIn, amountOut, minimum, balance, path, protocol: bestRoute.protocol, fees: bestRoute.fees } satisfies SwapQuote;
+}
+
+async function quoteV3(path: string[], amountIn: bigint) {
+  const quoter = new Contract(V3_CONFIG.quoterAddress, quoterV2Abi, provider);
+  let feePaths: number[][] = [[]];
+  for (let hop = 0; hop < path.length - 1; hop++) {
+    feePaths = feePaths.flatMap((fees) => V3_CONFIG.feeTiers.map((fee) => [...fees, fee]));
+  }
+
+  const results = await Promise.all(feePaths.map(async (fees) => {
+    try {
+      let currentAmount = amountIn;
+      for (let hop = 0; hop < path.length - 1; hop++) {
+        const result = await quoter.getFunction("quoteExactInputSingle").staticCall({
+          tokenIn: path[hop],
+          tokenOut: path[hop + 1],
+          amountIn: currentAmount,
+          fee: fees[hop],
+          sqrtPriceLimitX96: 0,
+        });
+        currentAmount = BigInt(result.amountOut ?? result[0]);
+        if (currentAmount <= BigInt(0)) return null;
+      }
+      return { amountOut: currentAmount, protocol: "v3" as const, fees };
+    } catch {
+      return null;
+    }
+  }));
+  return results.filter((result): result is NonNullable<typeof result> => result !== null)
+    .sort((a, b) => a.amountOut === b.amountOut ? 0 : a.amountOut > b.amountOut ? -1 : 1)[0] ?? null;
+}
+
+async function submitV3Swap(
+  signer: Wallet,
+  swapQuote: SwapQuote,
+  input: TokenInfo,
+  deadline: number,
+  gasPrice: bigint,
+  feeOptions: { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint } | { gasPrice: bigint },
+) {
+  const wbot = new Contract(WBOT_ADDRESS, wbotAbi, signer);
+  if (input.address === null) {
+    const nativeBalance = await provider.getBalance(signer.address);
+    const deposit = wbot.getFunction("deposit");
+    const depositGas = await deposit.estimateGas({ value: swapQuote.amountIn });
+    if (swapQuote.amountIn + depositGas * gasPrice > nativeBalance) {
+      throw new Error("Keep extra BOT in your wallet for wrapping and network fees.");
+    }
+    const wrapped = await deposit.send({ value: swapQuote.amountIn, gasLimit: depositGas, ...feeOptions });
+    const receipt = await wrapped.wait(1);
+    if (!receipt || receipt.status !== 1) throw new Error("Could not wrap BOT for the V3 swap.");
+  }
+
+  const tokenIn = swapQuote.path[0];
+  const tokenOut = swapQuote.path[swapQuote.path.length - 1];
+  const router = new Contract(V3_CONFIG.routerAddress, v3RouterAbi, signer);
+  const inputToken = new Contract(tokenIn, tokenIn.toLowerCase() === WBOT_ADDRESS.toLowerCase() ? wbotAbi : tokenAbi, signer);
+  const allowance = BigInt(await inputToken.getFunction("allowance").staticCall(signer.address, V3_CONFIG.routerAddress));
+  if (allowance < swapQuote.amountIn) {
+    const approve = inputToken.getFunction("approve");
+    const approvalGas = await approve.estimateGas(V3_CONFIG.routerAddress, swapQuote.amountIn);
+    const currentNativeBalance = await provider.getBalance(signer.address);
+    if (approvalGas * gasPrice > currentNativeBalance) throw new Error("Your BOT balance is not enough to approve the V3 swap.");
+    const approvalTx = await approve.send(V3_CONFIG.routerAddress, swapQuote.amountIn, { gasLimit: approvalGas, ...feeOptions });
+    const approvalReceipt = await approvalTx.wait(1);
+    if (!approvalReceipt || approvalReceipt.status !== 1) throw new Error("Token approval for the V3 swap failed.");
+  }
+
+  const pathTypes = swapQuote.path.flatMap((_, index) => index < swapQuote.fees.length ? ["address", "uint24"] : ["address"]);
+  const pathValues = swapQuote.path.flatMap((address, index) => index < swapQuote.fees.length ? [address, swapQuote.fees[index]] : [address]);
+  const encodedPath = solidityPacked(pathTypes, pathValues);
+  const singleHopParams = {
+    tokenIn,
+    tokenOut,
+    fee: swapQuote.fees[0],
+    recipient: signer.address,
+    deadline,
+    amountIn: swapQuote.amountIn,
+    amountOutMinimum: swapQuote.minimum,
+    sqrtPriceLimitX96: 0,
+  };
+  const swapMethod = swapQuote.path.length === 2
+    ? router.getFunction("exactInputSingle")
+    : router.getFunction("exactInput");
+  const swapParams = swapQuote.path.length === 2
+    ? singleHopParams
+    : { path: encodedPath, recipient: signer.address, deadline, amountIn: swapQuote.amountIn, amountOutMinimum: swapQuote.minimum };
+  const swapGas = await swapMethod.estimateGas(swapParams);
+  const beforeWbot = tokenOut.toLowerCase() === WBOT_ADDRESS.toLowerCase()
+    ? BigInt(await wbot.getFunction("balanceOf").staticCall(signer.address))
+    : BigInt(0);
+  const nativeBalanceForGas = await provider.getBalance(signer.address);
+  if (swapGas * gasPrice > nativeBalanceForGas) throw new Error("Your BOT balance is not enough to pay the V3 swap fee.");
+  const swapTx = await swapMethod.send(swapParams, { gasLimit: swapGas, ...feeOptions });
+  const swapReceipt = await swapTx.wait(1);
+  if (!swapReceipt || swapReceipt.status !== 1) throw new Error("The BDEX V3 swap failed on-chain.");
+
+  if (tokenOut.toLowerCase() === WBOT_ADDRESS.toLowerCase()) {
+    const afterWbot = BigInt(await wbot.getFunction("balanceOf").staticCall(signer.address));
+    const receivedWbot = afterWbot - beforeWbot;
+    if (receivedWbot <= BigInt(0)) throw new Error("The V3 swap completed without returning wrapped BOT.");
+    const withdraw = wbot.getFunction("withdraw");
+    const withdrawGas = await withdraw.estimateGas(receivedWbot);
+    const remainingNativeBalance = await provider.getBalance(signer.address);
+    if (withdrawGas * gasPrice > remainingNativeBalance) throw new Error("The swap completed, but keep BOT in your wallet to unwrap the output.");
+    const withdrawTx = await withdraw.send(receivedWbot, { gasLimit: withdrawGas, ...feeOptions });
+    const withdrawReceipt = await withdrawTx.wait(1);
+    if (!withdrawReceipt || withdrawReceipt.status !== 1) throw new Error("The swap completed, but unwrapping BOT failed.");
+  }
+
+  return swapTx.hash;
 }
 
 export async function POST(request: NextRequest) {
@@ -118,6 +266,8 @@ export async function POST(request: NextRequest) {
       minimumReceived: formatUnits(swapQuote.minimum, output.decimals),
       availableBalance: formatUnits(swapQuote.balance, input.decimals),
       slippage,
+      protocol: swapQuote.protocol,
+      fees: swapQuote.fees,
     } });
 
     if (typeof body.password !== "string" || !body.password) return jsonError("Confirm the swap with your account password.");
@@ -141,6 +291,10 @@ export async function POST(request: NextRequest) {
       : { gasPrice };
     const deadline = Math.floor(Date.now() / 1000) + 120;
     const nativeBalance = await provider.getBalance(signer.address);
+    if (swapQuote.protocol === "v3") {
+      const txHash = await submitV3Swap(signer, swapQuote, input, deadline, gasPrice, feeOptions);
+      return NextResponse.json({ success: true, txHash, amountIn: body.amount, minimumReceived: formatUnits(swapQuote.minimum, output.decimals), protocol: "v3" });
+    }
     const router = new Contract(ROUTER_ADDRESS, routerAbi, signer);
     let tx;
 
@@ -176,6 +330,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("BOT Chain token swap failed:", error);
     const message = error instanceof Error ? error.message : "Swap failed.";
+    if (/execution reverted|require\(false\)|CALL_EXCEPTION/i.test(message)) {
+      return jsonError("The DEX route reverted. Get a fresh quote and try again; pool liquidity or price may have changed.");
+    }
     if (/liquidity|route|insufficient|slippage|revert/i.test(message)) return jsonError(message.slice(0, 240));
     return jsonError("Could not complete this swap. The pair may have no liquidity or the RPC may be unavailable.", 400);
   }
