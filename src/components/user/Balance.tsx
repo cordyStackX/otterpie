@@ -5,7 +5,7 @@ import { Fetch_to } from "@/utilities";
 import { getWalletNetworkConfig, walletAssetLabel, walletNetworkLabel } from "@/utilities/network";
 
 type BalanceProps = { email: string; network: string };
-type WalletBalance = { asset: string; balance: string; issuer?: string | null; contract?: string; custom?: boolean; decimals?: number };
+type WalletBalance = { asset: string; balance: string; issuer?: string | null; contract?: string; custom?: boolean; decimals?: number; trustline?: boolean };
 type ManagedToken =
   | { type: "evm"; address: string; symbol: string; decimals: number }
   | { type: "stellar"; code: string; issuer: string };
@@ -283,6 +283,7 @@ export default function Balance({ email, network }: BalanceProps) {
                   {formatBalance(item.balance)} <span className="text-sm font-medium text-foreground/55">{item.asset}</span>
                 </p>
                 {item.issuer && <p className="mt-2 break-all text-[10px] text-foreground/40 sm:text-[11px]">Issuer: {item.issuer}</p>}
+                {item.trustline === false && <p className="mt-2 text-[10px] leading-4 text-amber-200/75 sm:text-[11px]">Trustline not enabled · required to receive USDT0</p>}
                 {item.contract && <p className="mt-2 break-all text-[10px] text-foreground/40 sm:text-[11px]">Contract: {item.contract}</p>}
               </article>
             );
