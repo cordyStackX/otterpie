@@ -16,7 +16,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Fetch_to } from "@/utilities";
-import { getWalletNetworkConfig, isBotChainNetwork } from "@/utilities/network";
+import { getWalletNetworkConfig, isBotChainNetwork, walletNetworkLabel } from "@/utilities/network";
 import routes from "@/routes/user.json";
 
 type DashboardProps = {
@@ -158,15 +158,35 @@ const toIncoming = (
     date: string;
     amount: string;
     asset: string;
+    type?: string;
+    amountOut?: string;
+    assetOut?: string;
     direction?: "received" | "sent";
     status?: "Completed" | "Failed";
   }[],
   symbol: string
-): Incoming[] =>
-  txs
-    .filter((t) => t.asset === symbol && t.direction !== "sent" && t.status !== "Failed")
-    .map((t) => ({ id: t.id, date: t.date, amount: parseFloat(t.amount), direction: t.direction, status: t.status }))
-    .filter((t) => Number.isFinite(t.amount));
+): Incoming[] => {
+  const matchesAsset = (asset: string | undefined) =>
+    asset?.trim().split(/[\s·:]/, 1)[0].toUpperCase() === symbol.trim().toUpperCase();
+
+  return txs
+    .flatMap((tx) => {
+      if (tx.status === "Failed") return [];
+
+      // A Stellar path-payment swap is marked as sent overall, but its output
+      // asset is received by the wallet and belongs in that asset's history.
+      if (tx.type === "swap") {
+        return matchesAsset(tx.assetOut) && tx.amountOut
+          ? [{ id: tx.id, date: tx.date, amount: parseFloat(tx.amountOut), direction: "received" as const, status: tx.status }]
+          : [];
+      }
+
+      return matchesAsset(tx.asset) && tx.direction !== "sent"
+        ? [{ id: tx.id, date: tx.date, amount: parseFloat(tx.amount), direction: tx.direction, status: tx.status }]
+        : [];
+    })
+    .filter((tx) => Number.isFinite(tx.amount));
+};
 
 // Groups incoming payments into 7 daily or 12 monthly buckets (local time)
 function buildTransfers(incoming: Incoming[], range: Range) {
@@ -528,21 +548,26 @@ export default function Dashboard({ email, network }: DashboardProps) {
   const [withdrawn, setWithdrawn] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<Category | null>(null);
   const [incoming, setIncoming] = useState<Incoming[]>([]);
+  const [historyNotice, setHistoryNotice] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<"BOT" | "PIE">("PIE");
+  const [selectedStellarAsset, setSelectedStellarAsset] = useState<"XLM" | "USDC">("XLM");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const networkConfig = getWalletNetworkConfig(network);
+  const isStellarTestnet = network === "stellar_testnet";
+  const showCurrentNetwork = networkConfig?.family === "stellar" || networkConfig?.family === "bot_chain";
 
   // Wallet balance (pie chart), formatted by the active network's ticker
   const [walletData, setWalletData] = useState<Slice[]>([]);
   const [loadingBalance, setLoadingBalance] = useState(true);
   const [loadingTransfers, setLoadingTransfers] = useState(true);
   const activeSymbol = networkConfig
-    ? networkConfig.features.pieSwap ? selectedAsset : networkConfig.nativeAsset
+    ? isStellarTestnet ? selectedStellarAsset : networkConfig.features.pieSwap ? selectedAsset : networkConfig.nativeAsset
     : "";
   const formatAmount = useMemo(() => makeFormatter(activeSymbol), [activeSymbol]);
 
   const nativeBalance = walletData.find((slice) => slice.name === activeSymbol)?.amount ?? 0;
   const isPieSelected = isBotChainNetwork(network) && activeSymbol === "PIE";
+  const canWithdrawCategory = Boolean(networkConfig?.routes.withdraw) && !isPieSelected;
   const formatTransferAmount = formatAmount;
   const isEmptyWallet = !loadingBalance && nativeBalance === 0;
 
@@ -634,13 +659,14 @@ export default function Dashboard({ email, network }: DashboardProps) {
     // Start clean so data from a previous account/network never lingers
     setWalletData([]);
     setIncoming([]);
+    setHistoryNotice(null);
     setWithdrawn({});
 
     const config = networkConfig
       ? {
           balance: networkConfig.routes.balance,
           transactions: networkConfig.routes.transactions,
-          symbol: networkConfig.features.pieSwap ? selectedAsset : networkConfig.nativeAsset,
+          symbol: activeSymbol,
         }
       : null;
 
@@ -657,7 +683,6 @@ export default function Dashboard({ email, network }: DashboardProps) {
       // null = that request failed, so keep whatever is already on screen
       let slices: Slice[] | null = null;
       let incomingTx: Incoming[] | null = null;
-      let loadedTransferSymbol = config?.symbol ?? "";
       const loadFullHistory = !historyComplete;
 
       if (config) {
@@ -675,7 +700,6 @@ export default function Dashboard({ email, network }: DashboardProps) {
             asset: activeSymbol,
           });
           if (txResponse.success) {
-            if (typeof txResponse.data.asset === "string") loadedTransferSymbol = txResponse.data.asset;
             const txs = [...txResponse.data.transactions];
             let cursor: string | null = txResponse.data.nextCursor ?? null;
             let complete = true;
@@ -692,7 +716,6 @@ export default function Dashboard({ email, network }: DashboardProps) {
                 complete = false;
                 break;
               }
-              if (typeof txResponse.data.asset === "string") loadedTransferSymbol = txResponse.data.asset;
               txs.push(...txResponse.data.transactions);
               cursor = txResponse.data.nextCursor ?? null;
               if (txResponse.data.hasMore && !cursor) {
@@ -701,10 +724,27 @@ export default function Dashboard({ email, network }: DashboardProps) {
               }
             }
 
-            if (complete) incomingTx = toIncoming(txs, loadedTransferSymbol);
+            if (complete) {
+              incomingTx = toIncoming(txs, activeSymbol);
+              if (incomingTx.length === 0) {
+                const returnedAssets = [...new Set(txs.map((tx) => tx.asset).filter(Boolean))];
+                const receivedCount = txs.filter((tx) => tx.direction !== "sent" && tx.status !== "Failed").length;
+                setHistoryNotice(
+                  txs.length === 0
+                    ? `Stellar returned no payment records for this wallet.`
+                    : `Loaded ${txs.length} Stellar payment${txs.length === 1 ? "" : "s"}; ${receivedCount} incoming. Assets returned: ${returnedAssets.join(", ") || "none"}.`
+                );
+              } else {
+                setHistoryNotice(null);
+              }
+            } else {
+              setHistoryNotice("Stellar history is incomplete because a transaction page could not be loaded.");
+            }
+          } else {
+            setHistoryNotice(`Could not load Stellar history: ${txResponse.message || "request failed"}.`);
           }
         } catch {
-          // Keep the previous transfer history
+          setHistoryNotice("Could not load Stellar history. Check the browser console for the request error.");
         }
       }
 
@@ -747,19 +787,28 @@ export default function Dashboard({ email, network }: DashboardProps) {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [email, network, networkConfig, selectedAsset]);
+  }, [email, network, networkConfig, activeSymbol]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       {/* Page header */}
-      <header>
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          Dashboard
-        </h1>
-        <p className="mt-1 text-sm text-foreground/55">
-          Your wallet balance, categories and recent transfers.
-          {lastUpdated && ` Updated ${lastUpdated.toLocaleTimeString()}.`}
-        </p>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
+            Dashboard
+          </h1>
+          <p className="mt-1 text-sm text-foreground/55">
+            Your wallet balance, categories and recent transfers.
+            {lastUpdated && ` Updated ${lastUpdated.toLocaleTimeString()}.`}
+          </p>
+        </div>
+        {showCurrentNetwork && (
+          <div className="inline-flex w-fit items-center gap-2 rounded-xl border border-primary/20 bg-primary/[0.06] px-3.5 py-2.5">
+            <span aria-hidden="true" className="h-2 w-2 rounded-full bg-primary" />
+            <span className="text-xs text-foreground/55">Current network</span>
+            <span className="text-sm font-semibold text-foreground">{walletNetworkLabel(network)}</span>
+          </div>
+        )}
       </header>
 
       {/* Top row: wallet balance and transfer history */}
@@ -822,8 +871,8 @@ export default function Dashboard({ email, network }: DashboardProps) {
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <p className="text-xs text-foreground/50">{activeSymbol === "PIE" ? "PIE balance" : "Native balance"}</p>
-                  <p className="max-w-[62%] break-words text-center text-sm font-semibold leading-tight tabular-nums tracking-tight text-foreground sm:text-base">
+                  <p className="text-xs text-foreground/50">{activeSymbol === "PIE" ? "PIE balance" : `${activeSymbol} balance`}</p>
+                  <p className="max-w-[62%] break-all text-center text-xs font-semibold leading-tight tabular-nums tracking-tight text-foreground sm:text-sm">
                     {formatAmount(nativeBalance)}
                   </p>
                 </div>
@@ -838,7 +887,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
                 <p className="mt-1 text-xs text-foreground/50">Set a goal and share for every category</p>
               ) : (
                 <>
-                  <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">{formatAmount(balanceTarget)}</p>
+                  <p className="mt-0.5 break-all text-xs font-semibold tabular-nums text-foreground sm:text-sm">{formatAmount(balanceTarget)}</p>
                   <p className="mt-0.5 text-[11px] text-foreground/50">{allGoalsReached ? "All category goals reached" : `${formatAmount(nativeBalance)} current balance`}</p>
                 </>
               )}
@@ -874,6 +923,23 @@ export default function Dashboard({ email, network }: DashboardProps) {
                 <span className="truncate">Switch to {isPieSelected ? "BOT Chain" : "PIE"}</span>
               </button>
             )}
+            {isStellarTestnet && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelected(null);
+                  setPage(1);
+                  setSelectedStellarAsset(selectedStellarAsset === "XLM" ? "USDC" : "XLM");
+                }}
+                aria-label={`Switch to ${selectedStellarAsset === "XLM" ? "USDC" : "XLM"}`}
+                className="flex w-full items-center justify-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-2 py-2 text-xs font-semibold text-primary outline-none transition-colors hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                <svg aria-hidden="true" className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m7 4 4 4-4 4M11 8H3m10 8h8m-4-4 4 4-4 4" />
+                </svg>
+                <span className="truncate">Switch to {selectedStellarAsset === "XLM" ? "USDC" : "XLM"}</span>
+              </button>
+            )}
             <div className="flex w-full gap-2">
               {networkConfig?.routes.swap && (
                 <Link
@@ -895,7 +961,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 id="transfer-title" className="text-sm font-semibold text-foreground">
-            {isBotChainNetwork(network) ? `${activeSymbol} transfer history` : "Transfer history"}
+            {isBotChainNetwork(network) || isStellarTestnet ? `${activeSymbol} transfer history` : "Transfer history"}
               </h2>
               {loadingTransfers ? (
                 <div role="status" aria-label="Loading transfer history" className="mt-2 space-y-2">
@@ -905,12 +971,19 @@ export default function Dashboard({ email, network }: DashboardProps) {
                 </div>
               ) : (
                 <>
-                  <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight text-foreground">
+                  <p className="mt-2 break-all text-xl font-semibold tabular-nums tracking-tight text-foreground sm:text-2xl">
                     {formatTransferAmount(receivedTotal)}
                   </p>
                   <p className="mt-0.5 text-xs text-foreground/50">
                     Received · last {activeRange.label} · avg {formatTransferAmount(receivedAverage)} {activeRange.averageLabel}
                   </p>
+                  {receivedTotal === 0 && (
+                    <p role="status" className="mt-1 max-w-xl text-xs text-amber-400/80">
+                      {historyNotice ?? (incoming.length > 0
+                        ? `No ${activeSymbol} received activity in the selected ${activeRange.label}.`
+                        : `No ${activeSymbol} received activity was found.`)}
+                    </p>
+                  )}
                 </>
               )}
             </div>
@@ -1033,14 +1106,14 @@ export default function Dashboard({ email, network }: DashboardProps) {
                   <button
                     type="button"
                     onClick={() => {
-                      if (!isPieSelected) setSelected({ id: c.id, name: c.name, amount: c.available });
+                      if (canWithdrawCategory) setSelected({ id: c.id, name: c.name, amount: c.available });
                     }}
-                    disabled={isPieSelected}
-                    aria-haspopup={isPieSelected ? undefined : "dialog"}
-                    aria-label={isPieSelected
-                      ? `${c.name}, ${formatAmount(c.available)} PIE category`
+                    disabled={!canWithdrawCategory}
+                    aria-haspopup={canWithdrawCategory ? "dialog" : undefined}
+                    aria-label={!canWithdrawCategory
+                      ? `${c.name}, ${formatAmount(c.available)} ${activeSymbol} category`
                       : `Withdraw from ${c.name}, balance ${formatAmount(c.available)}`}
-                    className={`relative isolate block w-full overflow-hidden rounded-xl border border-foreground/10 border-l-4 bg-background px-4 py-3.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-default ${isPieSelected ? "" : "hover:bg-foreground/[0.02]"}`}
+                    className={`relative isolate block w-full overflow-hidden rounded-xl border border-foreground/10 border-l-4 bg-background px-4 py-3.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-default ${canWithdrawCategory ? "hover:bg-foreground/[0.02]" : ""}`}
                     style={{ borderLeftColor: c.color || colorForIndex(i) }}
                   >
                     {/* Otter mascot as a soft background on the right of the card */}
@@ -1068,7 +1141,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
                       </span>
                     </div>
 
-                    <p className="mt-2 text-lg font-semibold tabular-nums tracking-tight text-foreground">
+                    <p className="mt-2 break-all text-base font-semibold tabular-nums tracking-tight text-foreground sm:text-lg">
                       {formatAmount(c.available)}
                     </p>
                     <p className="mt-0.5 text-xs text-foreground/50">
@@ -1126,7 +1199,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
         )}
       </section>
 
-      {selected && !isPieSelected && (
+      {selected && canWithdrawCategory && (
         <WithdrawDialog
           key={selected.id}
           category={selected}

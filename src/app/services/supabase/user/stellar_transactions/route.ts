@@ -7,10 +7,6 @@ import walletNetworks from "@/config/json_conf/wallet_networks.json";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // always read fresh transactions
 
-const stellarConfig = walletNetworks.stellar;
-const usdt0 = stellarConfig.tokens.USDT0.classicAsset;
-const server = new Horizon.Server(process.env.STELLAR_HORIZON_URL || stellarConfig.swapConfig.horizonUrl);
-
 const HORIZON_PAGE_SIZE = 200; // Horizon's max per page
 const MAX_HORIZON_PAGES = 5; // safety cap while finding 10 matching transactions
 const TRANSACTION_PAGE_SIZE = 10;
@@ -26,6 +22,10 @@ type Incoming = {
   direction: "received" | "sent";
   type: string;
   status: "Completed";
+  amountIn?: string;
+  assetIn?: string;
+  amountOut?: string;
+  assetOut?: string;
 };
 
 export async function POST(params: NextRequest) {
@@ -33,8 +33,27 @@ export async function POST(params: NextRequest) {
   if (auth?.error) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
+  const email = "email" in auth && typeof auth.email === "string" ? auth.email : "";
+  if (!email) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  const isTestnet = "network" in auth && auth.network === "stellar_testnet";
+  const stellarConfig = walletNetworks.stellar;
+  const usdt0 = stellarConfig.tokens.USDT0.classicAsset;
+  const server = new Horizon.Server(isTestnet
+    ? walletNetworks.stellar_testnet.swapConfig.horizonUrl
+    : (process.env.STELLAR_HORIZON_URL || stellarConfig.swapConfig.horizonUrl));
 
-  const { email, cursor } = await params.json();
+  let cursor: unknown;
+  let requestedAsset: string | null = null;
+  let includeAllAssets = false;
+  try {
+    const body = await params.json();
+    cursor = body.cursor;
+    requestedAsset = typeof body.asset === "string" && /^[A-Za-z0-9]{1,12}$/.test(body.asset)
+      ? body.asset.toUpperCase()
+      : null;
+    includeAllAssets = body.includeAllAssets === true;
+  }
+  catch { return NextResponse.json({ success: false, error: "Invalid request body." }, { status: 400 }); }
 
   // Only the PUBLIC address is needed, so the secret key is never selected.
   const { data, error } = await supabaseServer
@@ -61,6 +80,11 @@ export async function POST(params: NextRequest) {
 
   try {
     const transactions: Incoming[] = [];
+    const appendTransaction = (transaction: Incoming) => {
+      if (includeAllAssets || !requestedAsset || transaction.asset.toUpperCase() === requestedAsset) {
+        transactions.push(transaction);
+      }
+    };
     let operations = server
       .payments()
       .forAccount(address)
@@ -81,7 +105,7 @@ export async function POST(params: NextRequest) {
 
         // First funding of the account
         if (r.type === "create_account" && r.account === address) {
-          transactions.push({
+          appendTransaction({
             id: r.id,
             hash: r.transaction_hash ?? r.id,
             date: r.created_at,
@@ -103,7 +127,7 @@ export async function POST(params: NextRequest) {
         // Soroban USDT0 OFT activity is exposed as an invoke-host-function
         // payment record with SAC balance changes. Tag only burns from this
         // wallet, transfers into the configured OFT, and mints to this wallet.
-        if (r.type === "invoke_host_function" && Array.isArray(r.asset_balance_changes)) {
+        if (!isTestnet && r.type === "invoke_host_function" && Array.isArray(r.asset_balance_changes)) {
           const changes = r.asset_balance_changes as Array<Record<string, unknown>>;
           const bridgeChange = changes.find((change) => {
             if (change.asset_type !== "credit_alphanum4" && change.asset_type !== "credit_alphanum12") return false;
@@ -117,7 +141,7 @@ export async function POST(params: NextRequest) {
 
           if (bridgeChange && typeof bridgeChange.amount === "string") {
             const received = bridgeChange.type === "mint";
-            transactions.push({
+            appendTransaction({
               id: r.id,
               hash: r.transaction_hash ?? r.id,
               date: r.created_at,
@@ -144,17 +168,28 @@ export async function POST(params: NextRequest) {
           r.type === "path_payment_strict_receive";
 
         if (isPayment && (r.to === address || r.from === address)) {
-          transactions.push({
+          const isSelfPathPayment = r.type !== "payment" && r.from === address && r.to === address;
+          const sourceAsset = r.source_asset_type === "native" ? "XLM" : r.source_asset_code;
+          const destinationAsset = r.asset_type === "native" ? "XLM" : r.asset_code;
+          appendTransaction({
             id: r.id,
             hash: r.transaction_hash ?? r.id,
             date: r.created_at,
             amount: r.amount,
-            asset: r.asset_type === "native" ? "XLM" : r.asset_code,
+            asset: destinationAsset,
             from: r.from ?? null,
             to: r.to ?? null,
-            direction: r.to === address ? "received" : "sent",
-            type: r.type,
+            direction: isSelfPathPayment ? "sent" : r.to === address ? "received" : "sent",
+            type: isSelfPathPayment ? "swap" : r.type,
             status: "Completed",
+            ...(isSelfPathPayment && typeof r.source_amount === "string" && typeof sourceAsset === "string" && typeof destinationAsset === "string"
+              ? {
+                  amountIn: r.source_amount,
+                  assetIn: sourceAsset,
+                  amountOut: r.amount,
+                  assetOut: destinationAsset,
+                }
+              : {}),
           });
           if (transactions.length >= TRANSACTION_PAGE_SIZE) {
             hasMore = recordIndex < page.records.length - 1 || page.records.length === HORIZON_PAGE_SIZE;
@@ -179,6 +214,7 @@ export async function POST(params: NextRequest) {
       success: true,
       funded: true,
       address,
+      asset: requestedAsset,
       transactions,
       nextCursor: hasMore ? nextCursor : null,
       hasMore,

@@ -173,6 +173,9 @@ export async function POST(request: NextRequest) {
   if (!auth || auth.error) return jsonError("Unauthorized", 401);
   const email = "email" in auth && typeof auth.email === "string" ? auth.email : "";
   if (!email) return jsonError("Unauthorized", 401);
+  if ("network" in auth && auth.network === "stellar_testnet") {
+    return jsonError("The Stellar bridge is available on Mainnet only. Switch back to Stellar Mainnet to use it.", 400);
+  }
 
   let body: Record<string, unknown>;
   try {

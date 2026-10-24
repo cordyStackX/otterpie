@@ -7,10 +7,6 @@ import walletNetworks from "@/config/json_conf/wallet_networks.json";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // always read a fresh balance
 
-const server = new Horizon.Server(
-  process.env.STELLAR_HORIZON_URL || walletNetworks.stellar.swapConfig.horizonUrl
-);
-
 type StellarBalance = { asset: string; issuer: string | null; balance: string; custom?: boolean; trustline?: boolean };
 type ManagedStellarToken = { type: "stellar"; code: string; issuer: string };
 
@@ -29,6 +25,11 @@ export async function POST(params: NextRequest) {
 
   const email = "email" in auth && typeof auth.email === "string" ? auth.email : "";
   if (!email) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  const isTestnet = "network" in auth && auth.network === "stellar_testnet";
+  const networkConfig = isTestnet ? walletNetworks.stellar_testnet : walletNetworks.stellar;
+  const server = new Horizon.Server(isTestnet
+    ? networkConfig.swapConfig.horizonUrl
+    : (process.env.STELLAR_HORIZON_URL || networkConfig.swapConfig.horizonUrl));
 
   // Reading a balance only needs the PUBLIC address, so the secret key is
   // never selected, decrypted or held in memory here.
@@ -70,10 +71,11 @@ export async function POST(params: NextRequest) {
           return [];
       }
     });
-    const usdt0 = walletNetworks.stellar.tokens.USDT0.classicAsset;
-    const hasUsdt0Trustline = balances.some((item) => item.asset === usdt0.code && item.issuer === usdt0.issuer);
+    const configuredToken = isTestnet ? walletNetworks.stellar_testnet.tokens.USDC : walletNetworks.stellar.tokens.USDT0;
+    const asset = configuredToken.classicAsset;
+    const hasConfiguredTrustline = balances.some((item) => item.asset === asset.code && item.issuer === asset.issuer);
 
-    const savedTokens: unknown[] = Array.isArray(data?.token_balance) ? data.token_balance : [];
+    const savedTokens: unknown[] = !isTestnet && Array.isArray(data?.token_balance) ? data.token_balance : [];
     const importedBalances: StellarBalance[] = savedTokens
       .filter(isManagedStellarToken)
       .map((token) => {
@@ -84,14 +86,14 @@ export async function POST(params: NextRequest) {
       if (!balances.some((item) => item.asset === imported.asset && item.issuer === imported.issuer)) balances.push(imported);
     }
 
-    if (!hasUsdt0Trustline) {
-      const placeholder = balances.find((item) => item.asset === usdt0.code && item.issuer === usdt0.issuer);
+    if (!hasConfiguredTrustline) {
+      const placeholder = balances.find((item) => item.asset === asset.code && item.issuer === asset.issuer);
       if (placeholder) placeholder.trustline = false;
-      else balances.push({ asset: usdt0.code, issuer: usdt0.issuer, balance: "0", trustline: false });
+      else balances.push({ asset: asset.code, issuer: asset.issuer, balance: "0", trustline: false });
     }
     const managed = new Set(savedTokens.filter(isManagedStellarToken).map((token) => `${token.code}:${token.issuer}`));
     const visibleBalances = balances.filter((item) => item.asset === "XLM" ||
-      (item.asset === usdt0.code && item.issuer === usdt0.issuer) ||
+      (item.asset === asset.code && item.issuer === asset.issuer) ||
       (item.issuer !== null && managed.has(`${item.asset}:${item.issuer}`)));
 
     return NextResponse.json({ success: true, funded: true, address, balances: visibleBalances });

@@ -46,6 +46,9 @@ export async function POST(request: NextRequest) {
   if (network !== "bot_chain" && network !== "otterpie_bot_chain" && network !== "stellar") {
     return errorResponse("Unsupported wallet network.");
   }
+  if (network === "stellar" && "network" in auth && auth.network === "stellar_testnet") {
+    return errorResponse("Managed Stellar tokens are available on Mainnet only.", 400);
+  }
   const { data: wallet, error: walletError } = await supabaseServer.from("tbl_wallet")
     .select("token_balance")
     .eq("email", email)

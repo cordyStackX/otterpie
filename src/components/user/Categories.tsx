@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { FormEvent, useEffect, useState } from "react";
 import { Fetch_to } from "@/utilities";
-import { isBotChainNetwork } from "@/utilities/network";
+import { getWalletNetworkConfig, isBotChainNetwork } from "@/utilities/network";
 import routes from "@/routes/user.json";
 
 type Category = {
@@ -16,6 +16,7 @@ type Category = {
 };
 
 type CategoriesProps = { email: string; network: string };
+type CategoryAsset = "BOT" | "PIE" | "XLM" | "USDC";
 
 const iconOptions = [
   { name: "Default", path: "/icons/otters/otter-default.svg" },
@@ -43,7 +44,7 @@ const card = "rounded-xl border border-foreground/10 bg-background";
 
 export default function Categories({ email, network }: CategoriesProps) {
   const [categories, setCategories] = useState<Category[]>([]);
-  const [categoryAsset, setCategoryAsset] = useState<"BOT" | "PIE">("PIE");
+  const [categoryAsset, setCategoryAsset] = useState<CategoryAsset>("PIE");
   const [assetReady, setAssetReady] = useState(false);
   const [categoryPage, setCategoryPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -59,14 +60,18 @@ export default function Categories({ email, network }: CategoriesProps) {
   const [formError, setFormError] = useState("");
   const [actionError, setActionError] = useState("");
   const [saving, setSaving] = useState(false);
-  const categorySymbol = network === "stellar" ? "XLM" : categoryAsset;
+  const isStellarNetwork = getWalletNetworkConfig(network)?.family === "stellar";
+  const isStellarTestnet = network === "stellar_testnet";
+  const categorySymbol = isStellarNetwork ? isStellarTestnet ? categoryAsset : "XLM" : categoryAsset;
 
   useEffect(() => {
     if (!network) return;
     const requestedAsset = new URLSearchParams(window.location.search).get("asset");
-    setCategoryAsset(network === "stellar" || requestedAsset === "BOT" ? "BOT" : "PIE");
+    setCategoryAsset(isStellarNetwork
+      ? isStellarTestnet && requestedAsset === "USDC" ? "USDC" : "XLM"
+      : requestedAsset === "BOT" ? "BOT" : "PIE");
     setAssetReady(true);
-  }, [network]);
+  }, [network, isStellarNetwork, isStellarTestnet]);
 
   useEffect(() => {
     let cancelled = false;
@@ -222,9 +227,9 @@ export default function Categories({ email, network }: CategoriesProps) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {isBotChainNetwork(network) && (
+          {(isBotChainNetwork(network) || isStellarTestnet) && (
             <div role="group" aria-label="Category asset" className="flex rounded-lg bg-foreground/5 p-1">
-              {(["BOT", "PIE"] as const).map((asset) => (
+              {(isBotChainNetwork(network) ? ["BOT", "PIE"] as const : ["XLM", "USDC"] as const).map((asset) => (
                 <button
                   key={asset}
                   type="button"

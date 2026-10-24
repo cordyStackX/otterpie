@@ -297,7 +297,8 @@ export default function Bridge({ network, walletAddress }: BridgeProps) {
   const [submitted, setSubmitted] = useState<{ txHash: string; approvalHash?: string; message: string } | null>(null);
   const walletConfig = getWalletNetworkConfig(network);
   const supportsEvmBridge = walletConfig?.walletType === "evm";
-  const supportsStellarBridge = walletConfig?.walletType === "stellar" && walletNetworks.stellar.bridge.enabled;
+  const isStellarTestnet = network === "stellar_testnet";
+  const supportsStellarBridge = network === "stellar" && walletConfig?.walletType === "stellar" && walletNetworks.stellar.bridge.enabled;
   const balanceRequestKey = `${network}:${walletAddress}`;
   const activeBalanceKey = useRef(balanceRequestKey);
   const showBridgeSkeleton = supportsEvmBridge && direction === "outbound"
@@ -388,11 +389,11 @@ export default function Bridge({ network, walletAddress }: BridgeProps) {
     <div className="mx-auto w-full max-w-5xl space-y-5 sm:space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-medium text-primary">Move USDT across chains</p>
+          <p className="text-xs font-medium text-primary">{isStellarTestnet ? "Stellar Testnet" : "Move USDT across chains"}</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Bridge</h1>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-foreground/55">{supportsStellarBridge ? "Move USDT0 between Stellar and Ethereum or Arbitrum." : "Move USDT between BOT Chain and supported networks."}</p>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-foreground/55">{supportsStellarBridge ? "Move USDT0 between Stellar and Ethereum or Arbitrum." : isStellarTestnet ? "Check bridge availability for your selected Stellar network." : "Move USDT between BOT Chain and supported networks."}</p>
         </div>
-        <span className="rounded-full border border-primary/20 bg-primary/[0.06] px-3 py-1.5 text-xs font-medium text-primary">{supportsStellarBridge ? "USDT0 · Stellar" : "USDT · Mainnet"}</span>
+        <span className="rounded-full border border-primary/20 bg-primary/[0.06] px-3 py-1.5 text-xs font-medium text-primary">{supportsStellarBridge ? "USDT0 · Stellar Mainnet" : isStellarTestnet ? "Stellar Testnet · USDC" : "USDT · Mainnet"}</span>
       </header>
 
       {supportsEvmBridge && (
@@ -404,9 +405,19 @@ export default function Bridge({ network, walletAddress }: BridgeProps) {
 
       {supportsStellarBridge ? <StellarBridge walletAddress={walletAddress} /> : !supportsEvmBridge ? (
         <section role="status" className="rounded-xl border border-amber-400/25 bg-amber-400/5 p-5">
-          <h2 className="text-base font-semibold text-amber-200">Bridging unavailable for this wallet</h2>
+          <h2 className="text-base font-semibold text-amber-200">{isStellarTestnet ? "Stellar Testnet bridging is not available yet" : "Bridging unavailable for this wallet"}</h2>
           {!network ? (
             <p className="mt-2 text-sm text-foreground/70">Loading your wallet network…</p>
+          ) : isStellarTestnet ? (
+            <>
+              <p className="mt-2 text-sm leading-6 text-foreground/70">
+                Otterpie&apos;s Stellar bridge currently works on Stellar Mainnet only. Switch to Stellar Mainnet in Settings to bridge USDT0 between Stellar and Ethereum or Arbitrum.
+              </p>
+              <a href="/user/setting" className="mt-4 inline-flex rounded-lg border border-amber-300/30 px-4 py-2 text-sm font-medium text-amber-100 transition-colors hover:bg-amber-200/10">
+                Open Settings
+              </a>
+              <p className="mt-3 text-xs text-foreground/50">Your Testnet XLM and USDC stay on Testnet and are not affected by the Mainnet bridge.</p>
+            </>
           ) : (
             <>
               <p className="mt-2 text-sm text-foreground/70">

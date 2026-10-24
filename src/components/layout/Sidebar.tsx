@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Fetch_to } from "@/utilities";
-import { isBotChainNetwork, walletNetworkLabel } from "@/utilities/network";
+import { getWalletNetworkConfig, isBotChainNetwork, walletNetworkLabel } from "@/utilities/network";
 import routes from "@/routes/jwt.json";
 import QRCode from "qrcode";
 
@@ -65,6 +65,15 @@ const BridgeIcon = ({ className }: IconProps) => (
   </svg>
 );
 
+const PaiflowIcon = ({ className }: IconProps) => (
+  <svg {...iconProps} className={className}>
+    <circle cx="5" cy="6" r="2" />
+    <circle cx="19" cy="6" r="2" />
+    <circle cx="12" cy="18" r="2" />
+    <path d="M7 6h10M6.5 7.5l4.3 8M17.5 7.5l-4.3 8" />
+  </svg>
+);
+
 const SettingsIcon = ({ className }: IconProps) => (
   <svg {...iconProps} className={className}>
     <circle cx="12" cy="12" r="3" />
@@ -105,6 +114,7 @@ type SidebarProps = {
   userEmail?: string;
   wallet_address?: string;
   network?: string;
+  sessionLoading?: boolean;
   onLogout?: () => void;
 };
 
@@ -113,10 +123,12 @@ export default function Sidebar({
   userEmail,
   wallet_address,
   network,
+  sessionLoading = false,
   onLogout,
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const isStellarNetwork = getWalletNetworkConfig(network)?.family === "stellar";
   const [isOpen, setIsOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -192,9 +204,9 @@ export default function Sidebar({
 
   const initial = userName.trim().charAt(0).toUpperCase() || "U";
   const accountExplorer = wallet_address
-    ? network === "stellar"
+    ? isStellarNetwork
       ? {
-          href: `https://stellar.expert/explorer/public/account/${encodeURIComponent(wallet_address)}`,
+          href: `https://stellar.expert/explorer/${network === "stellar_testnet" ? "testnet" : "public"}/account/${encodeURIComponent(wallet_address)}`,
           label: "View on Stellar Expert",
         }
       : isBotChainNetwork(network)
@@ -325,6 +337,41 @@ export default function Sidebar({
     }
   };
 
+  if (sessionLoading) {
+    return (
+      <aside aria-label="Loading navigation" aria-busy="true" className="fixed inset-x-0 top-0 z-40 flex flex-col border-b border-foreground/10 bg-background md:inset-y-0 md:right-auto md:h-dvh md:w-60 md:border-b-0 md:border-r">
+        <div className="flex h-16 items-center justify-between px-4 md:px-5">
+          <div className="flex items-center gap-2">
+            <Image src="/logo.svg" alt="" width={32} height={32} priority />
+            <span className="text-lg font-semibold tracking-tight text-primary">Otterpie<span className="text-secondary">.</span></span>
+          </div>
+          <span aria-hidden="true" className="h-10 w-10 animate-pulse rounded-md bg-foreground/[0.06] md:hidden" />
+        </div>
+        <nav className="hidden flex-1 flex-col gap-2 border-t border-foreground/10 px-3 py-4 md:flex">
+          {Array.from({ length: 6 }, (_, index) => (
+            <div key={index} aria-hidden="true" className="flex h-9 items-center gap-3 rounded-md px-3">
+              <span className="h-[18px] w-[18px] animate-pulse rounded bg-foreground/10" />
+              <span className={`h-3 animate-pulse rounded bg-foreground/10 ${index === 0 ? "w-20" : index === 1 ? "w-14" : "w-24"}`} />
+            </div>
+          ))}
+          <div className="mt-3 border-t border-foreground/10 px-3 pt-4">
+            <div aria-hidden="true" className="mb-2 h-3 w-14 animate-pulse rounded bg-foreground/10" />
+            <div className="flex h-9 items-center gap-3 px-3">
+              <span className="h-[18px] w-[18px] animate-pulse rounded bg-foreground/10" />
+              <span className="h-3 w-16 animate-pulse rounded bg-foreground/10" />
+            </div>
+          </div>
+        </nav>
+        <div aria-hidden="true" className="hidden border-t border-foreground/10 p-3 md:block">
+          <div className="flex items-center gap-3 px-2 py-2">
+            <span className="h-9 w-9 animate-pulse rounded-full bg-foreground/10" />
+            <span className="space-y-2"><span className="block h-3 w-24 animate-pulse rounded bg-foreground/10" /><span className="block h-3 w-32 animate-pulse rounded bg-foreground/[0.07]" /></span>
+          </div>
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <>
       {/* Mobile backdrop */}
@@ -399,6 +446,24 @@ export default function Sidebar({
               </Link>
             );
           })}
+          {isStellarNetwork ? (
+            <div className="mt-4 border-t border-foreground/10 px-3 pt-4">
+              <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/35">Features</p>
+              <Link
+                href="/user/paiflow"
+                aria-current={isActive("/user/paiflow") ? "page" : undefined}
+                className={`group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                  isActive("/user/paiflow")
+                    ? "bg-primary/10 font-medium text-primary"
+                    : "text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
+                }`}
+              >
+                <span aria-hidden="true" className={`absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary ${isActive("/user/paiflow") ? "opacity-100" : "opacity-0"}`} />
+                <PaiflowIcon className={isActive("/user/paiflow") ? "text-primary" : "text-foreground/40 transition-colors group-hover:text-foreground/70"} />
+                <span>Paiflow</span>
+              </Link>
+            </div>
+          ) : null}
         </nav>
 
         {/* Account */}
@@ -558,8 +623,8 @@ export default function Sidebar({
                   <p className="mt-1 text-xs text-foreground/50">
                     {isBotChainNetwork(network)
                       ? `EVM wallet · ${walletNetworkLabel(network)} · Chain ID 677`
-                      : network === "stellar"
-                        ? "Non-EVM wallet · Stellar network"
+                      : isStellarNetwork
+                        ? `Non-EVM wallet · ${walletNetworkLabel(network ?? "stellar")}`
                         : "Scan with a wallet that supports this network."}
                   </p>
                   {walletQrCode ? (
@@ -586,7 +651,7 @@ export default function Sidebar({
                           <li>Check the recipient and enter the amount. Keep some BOT in the wallet for network fees.</li>
                         </ol>
                       </>
-                    ) : network === "stellar" ? (
+                    ) : isStellarNetwork ? (
                       <>
                         <h3 className="text-xs font-semibold">Using a non-EVM Stellar wallet</h3>
                         <ol className="mt-2 list-decimal space-y-1.5 pl-4 text-xs leading-relaxed text-foreground/60">

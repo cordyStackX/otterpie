@@ -20,6 +20,16 @@ type Quote = {
   recipient: string;
   destinationEid: number;
 };
+type TransactionDetails = {
+  hash: string;
+  successful: boolean;
+  ledger: number;
+  createdAt: string;
+  feeCharged: string;
+  sourceAccount: string;
+  operationCount: number;
+  memo: string | null;
+};
 const destinations = Object.entries(config.networks) as [Destination, (typeof config.networks)[Destination]][];
 const numberFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 7 });
 
@@ -40,6 +50,8 @@ export default function StellarBridge({ walletAddress }: Props) {
   const [balance, setBalance] = useState<string | null>(null);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [txHash, setTxHash] = useState("");
+  const [transactionDetails, setTransactionDetails] = useState<TransactionDetails | null>(null);
+  const [transactionLookup, setTransactionLookup] = useState<"idle" | "loading" | "found" | "pending" | "error">("idle");
   const [busy, setBusy] = useState<"balance" | "quote" | "bridge" | null>(null);
   const [error, setError] = useState("");
 
@@ -59,6 +71,36 @@ export default function StellarBridge({ walletAddress }: Props) {
   }, []);
 
   useEffect(() => { void refreshBalance(); }, [refreshBalance, walletAddress]);
+
+  const fetchTransactionDetails = useCallback(async (hash: string, cancelled?: () => boolean) => {
+    setTransactionLookup("loading");
+    setTransactionDetails(null);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (cancelled?.()) return;
+      const response = await Fetch_to("POST", routes["stellar-transaction"], { hash }, undefined, 1);
+      if (response.success) {
+        const transaction = response.data?.transaction as TransactionDetails | undefined;
+        if (transaction && typeof transaction.successful === "boolean") {
+          if (!cancelled?.()) {
+            setTransactionDetails(transaction);
+            setTransactionLookup("found");
+          }
+          return;
+        }
+      }
+      if (attempt < 4) await new Promise((resolve) => window.setTimeout(resolve, 1500));
+    }
+    if (!cancelled?.()) setTransactionLookup("pending");
+  }, []);
+
+  useEffect(() => {
+    if (!txHash) return;
+    let cancelled = false;
+    void fetchTransactionDetails(txHash, () => cancelled).catch(() => {
+      if (!cancelled) setTransactionLookup("error");
+    });
+    return () => { cancelled = true; };
+  }, [fetchTransactionDetails, txHash]);
 
   const request = async (action: "quote" | "bridge") => {
     setError("");
@@ -88,7 +130,7 @@ export default function StellarBridge({ walletAddress }: Props) {
     }
   };
 
-  const clearQuote = () => { setQuote(null); setTxHash(""); setPassword(""); setError(""); };
+  const clearQuote = () => { setQuote(null); setTxHash(""); setPassword(""); setError(""); setTransactionDetails(null); setTransactionLookup("idle"); };
 
   return (
     <div className="space-y-4">
@@ -154,9 +196,27 @@ export default function StellarBridge({ walletAddress }: Props) {
         <button type="submit" disabled={busy !== null || !password} className="mt-4 min-h-12 w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50">{busy === "bridge" ? "Submitting bridge…" : `Bridge ${numberFormat.format(Number(quote.amount))} USDT0`}</button>
       </>}
 
-      {txHash && <div role="status" className="mt-5 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-4 text-sm">
-        <p className="font-semibold text-emerald-300">Bridge request submitted</p>
-        <p className="mt-1 text-foreground/65">Your Stellar deposit was submitted. Destination delivery is pending LayerZero.</p>
+      {txHash && <div role="status" className={`mt-5 rounded-lg border p-4 text-sm ${transactionDetails && !transactionDetails.successful ? "border-red-500/25 bg-red-500/5" : "border-emerald-500/25 bg-emerald-500/5"}`}>
+        <p className={`font-semibold ${transactionDetails && !transactionDetails.successful ? "text-red-300" : "text-emerald-300"}`}>
+          {transactionDetails ? transactionDetails.successful ? "Stellar deposit confirmed" : "Stellar transaction failed" : "Bridge request submitted"}
+        </p>
+        <p className="mt-1 text-foreground/65">
+          {transactionDetails && !transactionDetails.successful
+            ? "The source transaction failed. Check the explorer record before trying again."
+            : transactionDetails?.successful
+              ? "The Stellar deposit is confirmed. Destination delivery is now pending LayerZero."
+              : "Waiting for Horizon to confirm the Stellar deposit. LayerZero delivery starts after confirmation."}
+        </p>
+        {transactionLookup === "loading" && <p className="mt-3 text-xs text-foreground/55">Fetching transaction confirmation from Stellar…</p>}
+        {transactionDetails && <dl className="mt-4 grid gap-2 border-t border-foreground/10 pt-3 text-xs sm:grid-cols-2">
+          <div><dt className="text-foreground/45">Stellar status</dt><dd className={`mt-0.5 font-medium ${transactionDetails.successful ? "text-emerald-300" : "text-red-300"}`}>{transactionDetails.successful ? "Confirmed" : "Failed"}</dd></div>
+          <div><dt className="text-foreground/45">Ledger</dt><dd className="mt-0.5 font-medium tabular-nums">{transactionDetails.ledger}</dd></div>
+          <div><dt className="text-foreground/45">Network fee</dt><dd className="mt-0.5 font-medium tabular-nums">{(Number(transactionDetails.feeCharged) / 10_000_000).toFixed(7)} XLM</dd></div>
+          <div><dt className="text-foreground/45">Operations</dt><dd className="mt-0.5 font-medium tabular-nums">{transactionDetails.operationCount}</dd></div>
+          <div className="sm:col-span-2"><dt className="text-foreground/45">Included at</dt><dd className="mt-0.5 font-medium">{new Date(transactionDetails.createdAt).toLocaleString()}</dd></div>
+        </dl>}
+        {transactionLookup === "pending" && <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-amber-200"><span>Horizon has not indexed this transaction yet.</span><button type="button" onClick={() => void fetchTransactionDetails(txHash)} className="underline underline-offset-2">Fetch again</button></div>}
+        {transactionLookup === "error" && <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-amber-200"><span>Could not fetch transaction details.</span><button type="button" onClick={() => void fetchTransactionDetails(txHash)} className="underline underline-offset-2">Retry</button></div>}
         <a href={`https://stellar.expert/explorer/public/tx/${txHash}`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block break-all font-mono text-xs text-primary underline underline-offset-4">View deposit transaction: {txHash}</a>
       </div>}
       {error && <p role="alert" className="mt-4 text-sm text-red-400">{error}</p>}

@@ -102,7 +102,7 @@ export default function Transactions({ email, network } : TransactionProps) {
           ? [transactionAssets[0] ?? "XLM"]
           : transactionAssets;
         const responses = await Promise.all(requestAssets.map((asset) =>
-          Fetch_to("POST", route, { email, cursor: cursor[asset], asset })
+          Fetch_to("POST", route, { email, cursor: cursor[asset], asset, includeAllAssets: true })
         ));
         const failedResponse = responses.find((response) => !response.success);
         if (failedResponse) {

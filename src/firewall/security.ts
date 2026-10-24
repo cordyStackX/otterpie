@@ -119,7 +119,7 @@ export default async function Security(req: NextRequest) {
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
             email?: unknown;
-            data?: { email?: unknown };
+            data?: { email?: unknown; network?: unknown };
             final_data?: { email?: unknown };
         };
         // auth_jwt stores the session identity inside `data`; older sessions
@@ -136,7 +136,7 @@ export default async function Security(req: NextRequest) {
 
         const { data: account, error } = await supabaseServer
         .from("tbl_auth")
-        .select("email")
+        .select("email, status")
         .eq("email", email)
         .maybeSingle();
 
@@ -146,7 +146,12 @@ export default async function Security(req: NextRequest) {
             };
         }
 
-        return { error: false, email: account.email };
+        const sessionNetwork = decoded.data?.network;
+        const network = sessionNetwork === "stellar" || sessionNetwork === "stellar_testnet"
+            ? (account.status === 0 ? "stellar_testnet" : "stellar")
+            : sessionNetwork;
+
+        return { error: false, email: account.email, network };
 
     } catch (err) {
         console.error("Security error:", err);

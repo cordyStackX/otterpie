@@ -96,7 +96,8 @@ export default function Balance({ email, network }: BalanceProps) {
 
   const withdrawAssets = useMemo(() => {
     if (config?.walletType === "stellar") {
-      return balances.filter((item) => item.asset === "XLM").map((item) => ({ asset: item.asset, balance: Number(item.balance), decimals: 7 }));
+      const allowedAssets = network === "stellar_testnet" ? ["XLM", "USDC"] : ["XLM"];
+      return balances.filter((item) => allowedAssets.includes(item.asset)).map((item) => ({ asset: item.asset, balance: Number(item.balance), decimals: 7 }));
     }
     if (config?.family === "bot_chain") {
       return balances.filter((item) => ["BOT", "PIE", "USDT"].includes(item.asset)).map((item) => ({
@@ -195,7 +196,7 @@ export default function Balance({ email, network }: BalanceProps) {
               <h2 className="text-sm font-semibold text-foreground sm:text-base">{config.walletType === "stellar" ? "Stellar wallet actions" : "Manage tokens"}</h2>
               <p className="mt-1 text-xs text-foreground/55 sm:text-sm">
                 {config.walletType === "stellar"
-                  ? "Swap or withdraw assets available in your Stellar wallet."
+                  ? network === "stellar_testnet" ? "Testnet balances and transactions. Use Settings to get test XLM and prepare a USDC trustline." : "Swap or withdraw assets available in your Stellar wallet."
                   : "Import ERC-20 tokens deployed on BOT Chain by contract address."}
               </p>
             </div>
@@ -324,7 +325,7 @@ export default function Balance({ email, network }: BalanceProps) {
                   {formatBalance(item.balance)} <span className="text-sm font-medium text-foreground/55">{item.asset}</span>
                 </p>
                 {item.issuer && <p className="mt-2 break-all text-[10px] text-foreground/40 sm:text-[11px]">Issuer: {item.issuer}</p>}
-                {item.trustline === false && <p className="mt-2 text-[10px] leading-4 text-amber-200/75 sm:text-[11px]">Trustline not enabled · required to receive USDT0</p>}
+                {item.trustline === false && <p className="mt-2 text-[10px] leading-4 text-amber-200/75 sm:text-[11px]">Trustline not enabled · required to receive {network === "stellar_testnet" ? "USDC" : "USDT0"}</p>}
                 {item.contract && <p className="mt-2 break-all text-[10px] text-foreground/40 sm:text-[11px]">Contract: {item.contract}</p>}
               </article>
             );
@@ -338,7 +339,7 @@ export default function Balance({ email, network }: BalanceProps) {
       ) : null}
 
       {swapOpen && config?.walletType === "stellar" && config.routes.swap && (
-        <StellarSwapDialog route={config.routes.swap}
+        <StellarSwapDialog route={config.routes.swap} network={network}
           assets={balances.filter((item) => item.issuer !== undefined || item.asset === "XLM")
             .map((item) => ({ code: item.asset, issuer: item.issuer ?? null, balance: item.balance }))}
           onClose={() => setSwapOpen(false)} onSwapped={() => loadBalances(false)} />
@@ -354,7 +355,7 @@ export default function Balance({ email, network }: BalanceProps) {
           onClose={() => setSwapOpen(false)} onSwapped={() => loadBalances(false)} />
       )}
       {withdrawOpen && config?.routes.withdraw && (
-        <BalanceWithdrawDialog route={config.routes.withdraw} email={email} assets={withdrawAssets}
+        <BalanceWithdrawDialog route={config.routes.withdraw} email={email} network={network} assets={withdrawAssets}
           onClose={() => setWithdrawOpen(false)} onWithdrawn={() => loadBalances(false)} />
       )}
       {trustlinePromptOpen && (
@@ -374,9 +375,10 @@ export default function Balance({ email, network }: BalanceProps) {
   );
 }
 
-function BalanceWithdrawDialog({ route, email, assets, onClose, onWithdrawn }: {
+function BalanceWithdrawDialog({ route, email, network, assets, onClose, onWithdrawn }: {
   route: string;
   email: string;
+  network: string;
   assets: { asset: string; balance: number; decimals: number }[];
   onClose: () => void;
   onWithdrawn: () => Promise<void>;
@@ -385,6 +387,7 @@ function BalanceWithdrawDialog({ route, email, assets, onClose, onWithdrawn }: {
   const [asset, setAsset] = useState(assets.find((item) => item.balance > 0)?.asset ?? assets[0]?.asset ?? "");
   const selected = assets.find((item) => item.asset === asset) ?? assets[0];
   const balance = selected?.balance ?? 0;
+  const isStellarNetwork = network === "stellar" || network === "stellar_testnet";
   const [amount, setAmount] = useState(selected?.balance ? String(selected.balance) : "");
   const [address, setAddress] = useState("");
   const [password, setPassword] = useState("");
@@ -435,13 +438,14 @@ function BalanceWithdrawDialog({ route, email, assets, onClose, onWithdrawn }: {
         ) : (
           <form onSubmit={(event) => void submit(event)}>
             <div className="flex items-start justify-between gap-4">
-              <div><p className="text-xs font-medium text-primary">{selected?.asset === "XLM" ? "Stellar" : "BOT Chain"}</p><h2 id="balance-withdraw-title" className="mt-1 text-lg font-semibold">Withdraw assets</h2></div>
+              <div><p className="text-xs font-medium text-primary">{isStellarNetwork ? walletNetworkLabel(network) : "BOT Chain"}</p><h2 id="balance-withdraw-title" className="mt-1 text-lg font-semibold">Withdraw assets</h2></div>
               <button type="button" aria-label="Close" disabled={busy} onClick={() => dialogRef.current?.close()} className="text-2xl leading-none text-foreground/50">×</button>
             </div>
             {assets.length > 1 && <label className="mt-4 block text-sm font-medium">Asset<select value={asset} onChange={(event) => { const next = assets.find((item) => item.asset === event.target.value); setAsset(event.target.value); setAmount(next?.balance ? String(next.balance) : ""); setError(""); }} disabled={busy} className="mt-1.5 block w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm">{assets.map((item) => <option key={item.asset} value={item.asset}>{item.asset} · {item.balance}</option>)}</select></label>}
             <p className="mt-4 rounded-lg bg-foreground/5 px-4 py-3 text-sm">Available: <strong>{balance} {asset}</strong></p>
             <label className="mt-4 block text-sm font-medium">Amount ({asset})<input type="number" min="0" max={balance} step={selected ? `0.${"0".repeat(Math.max(selected.decimals - 1, 0))}1` : "any"} value={amount} onChange={(event) => setAmount(event.target.value)} disabled={busy || balance <= 0} required className="mt-1.5 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm" /></label>
-            <label className="mt-4 block text-sm font-medium">Destination wallet address<input value={address} onChange={(event) => setAddress(event.target.value)} disabled={busy} required autoComplete="off" spellCheck={false} placeholder={asset === "XLM" ? "G..." : "0x..."} className="mt-1.5 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 font-mono text-sm" /></label>
+            <label className="mt-4 block text-sm font-medium">Destination wallet address<input value={address} onChange={(event) => setAddress(event.target.value)} disabled={busy} required autoComplete="off" spellCheck={false} placeholder={selected?.asset === "XLM" || selected?.asset === "USDC" ? "G..." : "0x..."} className="mt-1.5 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 font-mono text-sm" /></label>
+            {network === "stellar_testnet" && selected?.asset === "USDC" && <p className="mt-2 text-xs leading-5 text-foreground/50">Send to a Stellar G… account with the matching Testnet USDC trustline. To pay a Paiflow contract, use the Paiflow page and link its deployment ID.</p>}
             <label className="mt-4 block text-sm font-medium">Confirm with your password<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={busy} required className="mt-1.5 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm" /></label>
             {error && <p role="alert" className="mt-3 text-sm text-red-400">{error}</p>}
             <button type="submit" disabled={busy || balance <= 0} className="mt-5 w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-background disabled:opacity-50">{busy ? "Submitting withdrawal…" : `Withdraw ${asset}`}</button>
@@ -543,8 +547,9 @@ function EvmSwapDialog({ route, assets, onClose, onSwapped }: {
   </dialog>;
 }
 
-function StellarSwapDialog({ route, assets, onClose, onSwapped }: {
+function StellarSwapDialog({ route, network, assets, onClose, onSwapped }: {
   route: string;
+  network: string;
   assets: StellarSwapAsset[];
   onClose: () => void;
   onSwapped: () => Promise<void>;
@@ -598,7 +603,7 @@ function StellarSwapDialog({ route, assets, onClose, onSwapped }: {
 
   return <dialog ref={dialogRef} onClose={onClose} onCancel={(event) => { if (busy) event.preventDefault(); }} className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-foreground/10 bg-background p-0 text-foreground shadow-xl backdrop:bg-foreground/30 backdrop:backdrop-blur-[2px]">
     <form onSubmit={submitSwap} className="p-6">
-      <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-medium text-primary">Stellar path payment</p><h2 className="mt-1 text-lg font-semibold">Swap assets</h2></div><button type="button" disabled={busy !== null} onClick={() => dialogRef.current?.close()} className="text-2xl leading-none text-foreground/50">×</button></div>
+      <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-medium text-primary">{network === "stellar_testnet" ? "Stellar Testnet path payment" : "Stellar path payment"}</p><h2 className="mt-1 text-lg font-semibold">Swap assets</h2></div><button type="button" disabled={busy !== null} onClick={() => dialogRef.current?.close()} className="text-2xl leading-none text-foreground/50">×</button></div>
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <label className="text-xs font-medium text-foreground/65"><span className="flex items-center justify-between gap-2"><span>You pay</span><span className="text-right font-normal text-foreground/45">Balance: {fmt.format(Number(selectedSource?.balance ?? 0))} {selectedSource?.code ?? ""}</span></span>
           <select value={source} onChange={(event) => { const next = event.target.value; setSource(next); if (destination === next) setDestination(tradeable.find((asset) => sourceKey(asset) !== next) ? sourceKey(tradeable.find((asset) => sourceKey(asset) !== next)!) : ""); setQuote(null); setError(""); }} disabled={busy !== null || Boolean(txHash)} className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm text-foreground">
@@ -622,7 +627,7 @@ function StellarSwapDialog({ route, assets, onClose, onSwapped }: {
       {quote && !txHash && <><label className="mt-4 block text-xs font-medium text-foreground/65">Confirm with your account password<input type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} disabled={busy !== null} className="mt-1 w-full rounded-md border border-foreground/15 bg-background px-3 py-2.5 text-sm text-foreground" /></label><button type="submit" disabled={!password || busy !== null} className="mt-4 w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-background disabled:opacity-50">{busy === "swap" ? "Submitting swap…" : "Confirm Stellar swap"}</button></>}
       {txHash && <p className="mt-4 break-all rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-400">Swap submitted: {txHash}</p>}
       {error && <p role="alert" className="mt-3 text-sm text-red-400">{error}</p>}
-      <p className="mt-4 text-xs text-foreground/45">Quote and execution use Stellar’s available path liquidity. Keep XLM for network fees. The receiving asset needs a trustline.</p>
+      <p className="mt-4 text-xs text-foreground/45">{network === "stellar_testnet" ? "Testnet swaps use XLM and the configured test USDC issuer. A destination trustline and an available testnet liquidity path are required." : "Quote and execution use Stellar’s available path liquidity. Keep XLM for network fees. The receiving asset needs a trustline."}</p>
     </form>
   </dialog>;
 }

@@ -1,6 +1,5 @@
 "use client";
 import { Transactions } from "@/components/user";
-import { Sidebar } from "@/components/layout";
 import { Fetch_to } from "@/utilities";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -34,7 +33,6 @@ export default function UserTransactionPage() {
   }, []);
   return (
     <main className="min-h-screen bg-background px-4 py-8 md:px-8">
-      <Sidebar userEmail={data.email} userName={data.username} wallet_address={data.wallet_address} network={data.network} />
       <section className="mx-auto max-w-7xl pt-8 md:pl-72">
         <Transactions email={data.email} network={data.network} />
       </section>

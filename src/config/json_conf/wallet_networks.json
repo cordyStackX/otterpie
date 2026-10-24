@@ -24,7 +24,8 @@
       "manageTokens": "/services/supabase/user/manage_tokens",
       "swap": "/services/supabase/user/swap_tokens",
       "transactions": "/services/supabase/user/bot_chain_transactions",
-      "withdraw": "/services/withdraw/withdraw_botchain"
+      "withdraw": "/services/withdraw/withdraw_botchain",
+      "bridge": ""
     },
     "explorer": {
       "name": "BOT Chain Explorer",
@@ -227,6 +228,57 @@
           "explorerUrl": "https://arbiscan.io/tx/",
           "token": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
           "oft": "0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92"
+        }
+      }
+    }
+  },
+  "stellar_testnet": {
+    "aliases": ["stellar_testnet"],
+    "labels": {
+      "stellar_testnet": "Stellar Testnet"
+    },
+    "family": "stellar",
+    "walletType": "stellar",
+    "signup": {
+      "enabled": false,
+      "value": "stellar_testnet",
+      "label": "Stellar Testnet"
+    },
+    "nativeAsset": "XLM",
+    "transactionAssets": ["XLM", "USDC"],
+    "assetLabels": {
+      "XLM": "XLM · Stellar Testnet",
+      "USDC": "USDC · Stellar Testnet"
+    },
+    "routes": {
+      "balance": "/services/supabase/user/stellar_balance",
+      "transactions": "/services/supabase/user/stellar_transactions",
+      "manageTokens": "",
+      "swap": "/services/supabase/user/stellar_swap",
+      "withdraw": "/services/withdraw/withdraw_stellar",
+      "bridge": ""
+    },
+    "explorer": {
+      "name": "Stellar Expert Testnet",
+      "transactionUrlTemplate": "https://stellar.expert/explorer/testnet/tx/{hash}"
+    },
+    "features": {
+      "pieSwap": false
+    },
+    "swapConfig": {
+      "horizonUrl": "https://horizon-testnet.stellar.org",
+      "networkPassphrase": "Test SDF Network ; September 2015",
+      "assetDecimals": 7,
+      "baseFeeStroops": "10000"
+    },
+    "tokens": {
+      "USDC": {
+        "symbol": "USDC",
+        "name": "USD Coin",
+        "decimals": 7,
+        "classicAsset": {
+          "code": "USDC",
+          "issuer": "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
         }
       }
     }

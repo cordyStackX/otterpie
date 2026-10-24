@@ -67,17 +67,20 @@ function withUniqueIds(list: CategoryRule[]): CategoryRule[] {
 
 export async function POST(params: NextRequest) {
   const auth = await Security(params);
-  if (auth?.error) {
+  if (!auth || auth.error) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
   const body = await params.json();
   const email = body?.email;
   const asset = body?.asset ?? "BOT";
-  if (asset !== "BOT" && asset !== "PIE" && asset !== "XLM") {
-    return NextResponse.json({ success: false, error: "Choose BOT, PIE, or XLM categories." }, { status: 400 });
+  if (asset !== "BOT" && asset !== "PIE" && asset !== "XLM" && asset !== "USDC") {
+    return NextResponse.json({ success: false, error: "Choose BOT, PIE, XLM, or USDC categories." }, { status: 400 });
   }
-  const categoryColumn = body?.asset === "PIE" ? "category_pie" : "category";
+  if (asset === "USDC" && !("network" in auth && auth.network === "stellar_testnet")) {
+    return NextResponse.json({ success: false, error: "USDC categories are only available on Stellar Testnet." }, { status: 400 });
+  }
+  const categoryColumn = asset === "PIE" ? "category_pie" : asset === "USDC" ? "category_stellar_usdc" : "category";
 
   // Paging: 10 categories per page by default
   const limit = Math.min(
@@ -90,7 +93,7 @@ export async function POST(params: NextRequest) {
   }
 
   try {
-    // PIE categories are isolated from native BOT / Stellar categories.
+    // PIE and testnet USDC categories are stored separately from native categories.
     const { data, error } = await supabaseServer
       .from("categories")
       .select(categoryColumn)

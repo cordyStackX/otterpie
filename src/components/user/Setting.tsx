@@ -5,6 +5,7 @@ import { Fetch_to } from "@/utilities";
 import { getWalletNetworkConfig, walletNetworkLabel } from "@/utilities/network";
 import routes from "@/routes/user.json";
 import authRoutes from "@/routes/auth.json";
+import walletNetworks from "@/config/json_conf/wallet_networks.json";
 
 type SettingProps = {
   email: string;
@@ -40,6 +41,11 @@ export default function Setting({ email, username, walletAddress, network, onUse
   const [trustlineMessage, setTrustlineMessage] = useState("");
   const [trustlineRefresh, setTrustlineRefresh] = useState(0);
   const isStellarWallet = getWalletNetworkConfig(network)?.walletType === "stellar";
+  const isStellarTestnet = network === "stellar_testnet";
+  const [networkSwitchBusy, setNetworkSwitchBusy] = useState(false);
+  const [networkSwitchMessage, setNetworkSwitchMessage] = useState("");
+  const [friendbotBusy, setFriendbotBusy] = useState(false);
+  const [friendbotMessage, setFriendbotMessage] = useState("");
 
   useEffect(() => setNewUsername(username), [username]);
 
@@ -50,6 +56,21 @@ export default function Setting({ email, username, walletAddress, network, onUse
     setTrustlineMessage("");
     void (async () => {
       try {
+        if (isStellarTestnet) {
+          const balanceRoute = getWalletNetworkConfig(network)?.routes.balance;
+          if (!balanceRoute) throw new Error("Could not load your Stellar Testnet balance.");
+          const response = await Fetch_to("POST", balanceRoute, { email }, undefined, 1);
+          if (!response.success) throw new Error(response.message || "Could not check the USDC trustline.");
+          const data = response.data as { funded?: boolean; balances?: Array<{ asset: string; issuer?: string | null; trustline?: boolean }> };
+          if (data.funded === false) {
+            if (!cancelled) setTrustlineStatus("unfunded");
+            return;
+          }
+          const usdcIssuer = walletNetworks.stellar_testnet.tokens.USDC.classicAsset.issuer;
+          const usdc = data.balances?.find((item) => item.asset === "USDC" && item.issuer === usdcIssuer);
+          if (!cancelled) setTrustlineStatus(usdc?.trustline === false || !usdc ? "missing" : "ready");
+          return;
+        }
         const response = await Fetch_to("POST", routes["bridge-non-evm"], { action: "destination" }, undefined, 1);
         if (!response.success) throw new Error(response.message || "Could not check the Stellar trustline.");
         const data = response.data as { address?: string; trustline?: boolean; funded?: boolean };
@@ -63,7 +84,65 @@ export default function Setting({ email, username, walletAddress, network, onUse
       }
     })();
     return () => { cancelled = true; };
-  }, [isStellarWallet, trustlineRefresh, walletAddress]);
+  }, [email, isStellarWallet, isStellarTestnet, network, trustlineRefresh, walletAddress]);
+
+  const switchStellarEnvironment = async (environment: "mainnet" | "testnet") => {
+    if (networkSwitchBusy || (isStellarTestnet === (environment === "testnet"))) return;
+    setNetworkSwitchBusy(true);
+    setNetworkSwitchMessage("");
+    try {
+      const response = await Fetch_to("POST", routes["stellar-environment"], { environment });
+      if (!response.success) throw new Error(response.message || "Could not switch the Stellar network.");
+      window.location.reload();
+    } catch (error) {
+      setNetworkSwitchMessage(error instanceof Error ? error.message : "Could not switch the Stellar network.");
+      setNetworkSwitchBusy(false);
+    }
+  };
+
+  const fundStellarTestnet = async () => {
+    if (!walletAddress || friendbotBusy) return;
+    setFriendbotBusy(true);
+    setFriendbotMessage("");
+    try {
+      const response = await fetch(routes["stellar-testnet-fund"], {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const result = await response.json().catch(() => null) as { message?: string; error?: string } | null;
+      if (!response.ok) {
+        throw new Error(result?.error || `Friendbot request failed (${response.status}).`);
+      }
+      setFriendbotMessage(result?.message || "Test XLM was sent to your Stellar Testnet address. Refresh your balance to see it.");
+      setTrustlineRefresh((value) => value + 1);
+    } catch (error) {
+      setFriendbotMessage(error instanceof Error
+        ? error.message
+        : "Could not contact Friendbot. Please try again.");
+    } finally {
+      setFriendbotBusy(false);
+    }
+  };
+
+  const createTestnetUsdcTrustline = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!trustlinePassword || trustlineBusy) return;
+    setTrustlineBusy(true);
+    setTrustlineMessage("");
+    try {
+      const response = await Fetch_to("POST", routes["stellar-testnet-trustline"], { password: trustlinePassword }, undefined, 1);
+      if (!response.success) throw new Error(response.message || "Could not create the Testnet USDC trustline.");
+      setTrustlinePassword("");
+      setTrustlineStatus("ready");
+      setTrustlineMessage(response.data?.message || "USDC trustline created on Stellar Testnet.");
+    } catch (error) {
+      setTrustlineStatus("missing");
+      setTrustlineMessage(error instanceof Error ? error.message : "Could not create the Testnet USDC trustline.");
+    } finally {
+      setTrustlineBusy(false);
+    }
+  };
 
   const createUsdt0Trustline = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -416,7 +495,53 @@ export default function Setting({ email, username, walletAddress, network, onUse
         </p>
       </section>
 
-      {isStellarWallet && <section aria-labelledby="stellar-trustline-title" className={`${card} p-5 sm:p-7`}>
+      {isStellarWallet && <section aria-labelledby="stellar-network-title" className={`${card} p-5 sm:p-7`}>
+        <div className="mb-5 border-b border-foreground/10 pb-5">
+          <h2 id="stellar-network-title" className="text-lg font-semibold">Stellar network</h2>
+          <p className="mt-1 text-sm leading-6 text-foreground/55">Use the same Stellar address on Mainnet or Testnet. Balances, trustlines, and transactions belong to the selected network.</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <button type="button" onClick={() => void switchStellarEnvironment("mainnet")} disabled={networkSwitchBusy || !isStellarTestnet} aria-pressed={!isStellarTestnet} className={`rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-default ${!isStellarTestnet ? "border-primary/40 bg-primary/10 text-primary" : "border-foreground/15 hover:bg-foreground/5"}`}>
+            Stellar Mainnet
+          </button>
+          <button type="button" onClick={() => void switchStellarEnvironment("testnet")} disabled={networkSwitchBusy || isStellarTestnet} aria-pressed={isStellarTestnet} className={`rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-default ${isStellarTestnet ? "border-primary/40 bg-primary/10 text-primary" : "border-foreground/15 hover:bg-foreground/5"}`}>
+            Stellar Testnet
+          </button>
+          {networkSwitchBusy && <span role="status" className="self-center text-sm text-foreground/55">Switching network…</span>}
+        </div>
+        <p className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm leading-6 text-foreground/65">
+          This uses the same wallet key on both Stellar networks. Testnet funds have no real value and are separate from Mainnet funds. Confirm the selected network in your wallet before signing transactions.
+        </p>
+        {networkSwitchMessage && <p role="alert" className="mt-3 text-sm text-rose-500">{networkSwitchMessage}</p>}
+        {isStellarTestnet && <div className="mt-5 space-y-3 rounded-xl border border-foreground/10 p-4 text-sm">
+          <h3 className="font-semibold">Get test funds</h3>
+          <p className="text-foreground/60">Fund this address with test XLM, then add a USDC trustline from the exact testnet issuer before receiving USDC.</p>
+          <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={() => void fundStellarTestnet()} disabled={!walletAddress || friendbotBusy} className="rounded-lg bg-primary px-4 py-2.5 font-semibold text-background disabled:cursor-wait disabled:opacity-60">{friendbotBusy ? "Requesting test XLM…" : "Fund with Friendbot"}</button>
+            <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer" className="rounded-lg border border-foreground/15 px-4 py-2.5 font-medium hover:bg-foreground/5">Get test USDC</a>
+          </div>
+          {friendbotMessage && <p role="status" className={`text-sm ${friendbotMessage.startsWith("Test XLM") || friendbotMessage.startsWith("Friendbot funded") ? "text-emerald-500" : "text-rose-500"}`}>{friendbotMessage}</p>}
+          <p className="break-all font-mono text-xs text-foreground/50">USDC issuer: {walletNetworks.stellar_testnet.tokens.USDC.classicAsset.issuer}</p>
+          <p className="text-xs text-foreground/45">This trustline is created on Stellar Testnet. Select Testnet in Freighter if you sign any other test transactions there.</p>
+          <div className="border-t border-foreground/10 pt-4">
+            <h4 className="text-sm font-semibold">USDC trustline</h4>
+            {trustlineStatus === "loading" ? <p role="status" className="mt-2 text-sm text-foreground/55">Checking your Testnet USDC trustline…</p>
+              : trustlineStatus === "ready" ? <p role="status" className="mt-2 text-sm text-emerald-500">Your wallet can hold Testnet USDC.{trustlineMessage && ` ${trustlineMessage}`}</p>
+              : trustlineStatus === "unfunded" ? <p role="status" className="mt-2 text-sm text-amber-600 dark:text-amber-300">Fund this Stellar Testnet address with Friendbot first. XLM is needed for the trustline reserve and transaction fee.</p>
+              : trustlineStatus === "missing" ? <form onSubmit={(event) => void createTestnetUsdcTrustline(event)} className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <label htmlFor="stellar-testnet-trustline-password" className="block text-sm font-medium">Confirm with your account password
+                  <input id="stellar-testnet-trustline-password" type="password" autoComplete="current-password" value={trustlinePassword} onChange={(event) => setTrustlinePassword(event.target.value)} required disabled={trustlineBusy} className="mt-2 w-full rounded-xl border border-foreground/10 bg-background px-4 py-3 text-sm font-normal outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/15" />
+                </label>
+                <button type="submit" disabled={!trustlinePassword || trustlineBusy} className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-background disabled:cursor-wait disabled:opacity-50">{trustlineBusy ? "Creating trustline…" : "Create Testnet USDC trustline"}</button>
+              </form>
+              : <div className="mt-2 flex flex-wrap items-center gap-3"><p role="alert" className="text-sm text-rose-500">{trustlineMessage || "Could not check the Testnet USDC trustline."}</p><button type="button" onClick={() => setTrustlineRefresh((value) => value + 1)} className="text-sm font-medium text-primary underline">Try again</button></div>}
+            {trustlineMessage && trustlineStatus !== "error" && trustlineStatus !== "ready" && <p role="alert" className="mt-2 text-sm text-rose-500">{trustlineMessage}</p>}
+            <p className="mt-2 text-xs text-foreground/45">Otterpie signs this trustline transaction with your stored wallet key after you confirm your account password. Your secret key is not shown.</p>
+          </div>
+        </div>}
+      </section>}
+
+      {isStellarWallet && !isStellarTestnet && <section aria-labelledby="stellar-trustline-title" className={`${card} p-5 sm:p-7`}>
         <div className="mb-5 border-b border-foreground/10 pb-5">
           <h2 id="stellar-trustline-title" className="text-lg font-semibold">Stellar USDT0 trustline</h2>
           <p className="mt-1 text-sm leading-6 text-foreground/55">A trustline lets your Stellar wallet hold USDT0. Creating it reserves XLM on Stellar; the reserve is not a transaction fee.</p>
