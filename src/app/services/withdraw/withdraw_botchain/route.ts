@@ -3,6 +3,7 @@ import { Contract, JsonRpcProvider, Wallet, formatEther, formatUnits, isAddress,
 import bcrypt from "bcrypt";
 import { decryptText, rateLimit, Security } from "@/firewall";
 import { BOT_CHAIN_PIE_TOKEN_ADDRESS, supabaseServer } from "@/lib";
+import { isBotChainNetwork } from "@/utilities/network";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,8 +23,14 @@ const tokenAbi = [
 
 export async function POST(request: NextRequest) {
   const auth = await Security(request);
-  if (auth?.error) {
+  if (!auth || auth.error) {
+    if (auth?.error instanceof NextResponse) return auth.error;
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+  const email = "email" in auth && typeof auth.email === "string" ? auth.email : "";
+  const network = "network" in auth && typeof auth.network === "string" ? auth.network : undefined;
+  if (!email || !isBotChainNetwork(network)) {
+    return NextResponse.json({ success: false, error: "Switch to a BOT Chain network before sending BOT Chain assets." }, { status: 400 });
   }
 
   const rate = rateLimit(request, { windowMs: 60_000, max: 5, keyPrefix: "Show_wallet_secrets" });
@@ -35,7 +42,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: { email: string; address?: unknown; amount?: unknown; withdrawAll?: unknown; password?: unknown; asset?: unknown };
+  let body: { address?: unknown; amount?: unknown; withdrawAll?: unknown; password?: unknown; asset?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -54,7 +61,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Enter a valid EVM wallet address." }, { status: 400 });
   }
   if (asset !== "BOT" && asset !== "PIE" && asset !== "USDT") {
-    return NextResponse.json({ success: false, error: "Choose BOT or USDT to transfer. PIE transfers are disabled." }, { status: 400 });
+    return NextResponse.json({ success: false, error: "Choose BOT, PIE, or USDT to transfer." }, { status: 400 });
   }
   if (!withdrawAll && !/^\d+(?:\.\d{1,18})?$/.test(amountText)) {
     return NextResponse.json({ success: false, error: `Enter a valid ${asset} amount with up to 18 decimal places.` }, { status: 400 });
@@ -62,7 +69,7 @@ export async function POST(request: NextRequest) {
   const { data: account, error: accountError } = await supabaseServer
     .from("tbl_auth")
     .select("password")
-    .eq("email", body.email)
+    .eq("email", email)
     .maybeSingle();
   if (accountError) {
     return NextResponse.json({ success: false, error: "Could not verify your password." }, { status: 500 });
@@ -74,7 +81,7 @@ export async function POST(request: NextRequest) {
   const { data: walletRecord, error: walletError } = await supabaseServer
     .from("tbl_wallet")
     .select("wallet_address, secret_key, network")
-    .eq("email", body.email)
+    .eq("email", email)
     .in("network", ["bot_chain", "otterpie_bot_chain"])
     .maybeSingle();
 

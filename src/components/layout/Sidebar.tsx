@@ -47,6 +47,14 @@ const CategoriesIcon = ({ className }: IconProps) => (
   </svg>
 );
 
+const FriendsIcon = ({ className }: IconProps) => (
+  <svg {...iconProps} className={className}>
+    <circle cx="9" cy="8" r="3" />
+    <path d="M3.5 20v-1.5A4.5 4.5 0 0 1 8 14h2a4.5 4.5 0 0 1 4.5 4.5V20" />
+    <path d="M16 5.2a3 3 0 0 1 0 5.6M17 14h.5a4 4 0 0 1 4 4v2" />
+  </svg>
+);
+
 const TransactionsIcon = ({ className }: IconProps) => (
   <svg {...iconProps} className={className}>
     <path d="M7 4 3 8l4 4" />
@@ -106,6 +114,7 @@ const navItems = [
   { href: "/user/balance", label: "Balance", icon: BalanceIcon },
   { href: "/user/bridge", label: "Bridge", icon: BridgeIcon },
   { href: "/user/add-category", label: "Categories", icon: CategoriesIcon },
+  { href: "/user/friends", label: "Friends", icon: FriendsIcon },
   { href: "/user/transactions", label: "Transactions", icon: TransactionsIcon },
   { href: "/user/setting", label: "Settings", icon: SettingsIcon },
 ];

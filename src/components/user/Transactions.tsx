@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react";
 import { Fetch_to } from "@/utilities";
 import { getWalletNetworkConfig, walletAssetLabel, walletNetworkLabel } from "@/utilities/network";
+import userRoutes from "@/routes/user.json";
 
 type Transaction = {
   id: string;
   name: string;
   address: string;
-  type: "Receive" | "Withdraw" | "Swap" | "Bridge";
+  type: "Receive" | "Withdraw" | "Send" | "Swap" | "Bridge";
   status: "Completed" | "Pending" | "Failed";
   amount: number;
   asset: string;
@@ -26,12 +27,12 @@ type TransactionProps = {
   network: string;
 }
 
-type Filter = "All" | "Withdraw" | "Receive" | "Swap" | "Bridge";
+type Filter = "All" | "Withdraw" | "Send" | "Receive" | "Swap" | "Bridge";
 type TransactionCursors = Record<string, string | null>;
 const EMPTY_TRANSACTION_ASSETS: string[] = [];
 const emptyCursors = (assets: string[] = []): TransactionCursors =>
   Object.fromEntries(assets.map((asset) => [asset, null]));
-const filters: Filter[] = ["All", "Withdraw", "Receive", "Swap", "Bridge"];
+const filters: Filter[] = ["All", "Withdraw", "Send", "Receive", "Swap", "Bridge"];
 const skeletonClass = "animate-pulse motion-reduce:animate-none rounded-md bg-foreground/10";
 
 const cardClass = "rounded-xl border border-foreground/10 bg-background";
@@ -101,9 +102,12 @@ export default function Transactions({ email, network } : TransactionProps) {
         const requestAssets = networkConfig?.family === "stellar"
           ? [transactionAssets[0] ?? "XLM"]
           : transactionAssets;
-        const responses = await Promise.all(requestAssets.map((asset) =>
-          Fetch_to("POST", route, { email, cursor: cursor[asset], asset, includeAllAssets: true })
-        ));
+        const [responses, friendsResponse] = await Promise.all([
+          Promise.all(requestAssets.map((asset) =>
+            Fetch_to("POST", route, { email, cursor: cursor[asset], asset, includeAllAssets: true })
+          )),
+          Fetch_to("GET", userRoutes.friends, {}, undefined, 1),
+        ]);
         const failedResponse = responses.find((response) => !response.success);
         if (failedResponse) {
           throw new Error(failedResponse.message || "Could not load transactions.");
@@ -231,6 +235,18 @@ export default function Transactions({ email, network } : TransactionProps) {
           ...swaps,
           ...bridges,
         ].sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+        const friendByAddress = new Map<string, string>();
+        const friends = Array.isArray(friendsResponse.data?.friends) ? friendsResponse.data.friends : [];
+        for (const friend of friends) {
+          if (typeof friend.walletAddress === "string" && typeof friend.username === "string") {
+            friendByAddress.set(friend.walletAddress.toLowerCase(), friend.username);
+          }
+        }
+        const labeledTransactions = mapped.map((transaction): Transaction => {
+          if (transaction.type !== "Withdraw") return transaction;
+          const friendName = friendByAddress.get(transaction.address.toLowerCase());
+          return friendName ? { ...transaction, type: "Send", name: `To ${friendName}` } : transaction;
+        });
 
         const updatedCursors = emptyCursors(transactionAssets);
         responses.forEach((response, index) => {
@@ -239,7 +255,7 @@ export default function Transactions({ email, network } : TransactionProps) {
         const more = responses.some((response) => response.data?.hasMore === true);
 
         if (!cancelled) {
-          setTransactions(mapped);
+          setTransactions(labeledTransactions);
           setNextCursor(more ? updatedCursors : null);
           setHasMore(more);
         }
@@ -414,7 +430,7 @@ export default function Transactions({ email, network } : TransactionProps) {
             </div>
             <p className="mt-3 text-sm font-medium">No transactions found</p>
             <p className="mt-1 text-xs text-foreground/50">
-              {filter === "Swap" ? "Swap records will appear here after real on-chain swaps are available." : filter === "Bridge" ? "Bridge transactions will appear here after a BOT Chain bridge transfer." : "Try another search or filter."}
+              {filter === "Swap" ? "Swap records will appear here after real on-chain swaps are available." : filter === "Bridge" ? "Bridge transactions will appear here after a BOT Chain bridge transfer." : filter === "Send" ? "Transfers to your saved Otter friends will appear here." : "Try another search or filter."}
             </p>
           </div>
         ) : (
@@ -445,7 +461,7 @@ export default function Transactions({ email, network } : TransactionProps) {
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium">{transaction.name}</p>
                             <p className="mt-0.5 font-mono text-xs text-foreground/45">
-                              {transaction.type === "Swap" ? "Swap transaction" : transaction.type === "Bridge" ? "Bridge transfer" : `${transaction.type === "Withdraw" ? "Sent" : "Received"} · ${shortAddress(transaction.address)}`}
+                              {transaction.type === "Swap" ? "Swap transaction" : transaction.type === "Bridge" ? "Bridge transfer" : `${transaction.type === "Receive" ? "Received" : transaction.type === "Send" ? "Sent to" : "Sent"} · ${shortAddress(transaction.address)}`}
                             </p>
                           </div>
                         </div>
@@ -517,7 +533,7 @@ function TransactionCard({ transaction, network }: { transaction: Transaction; n
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{transaction.name}</p>
             <p className="mt-0.5 font-mono text-xs text-foreground/45">
-              {transaction.type === "Swap" ? "Swap transaction" : transaction.type === "Bridge" ? "Bridge transfer" : shortAddress(transaction.address)}
+              {transaction.type === "Swap" ? "Swap transaction" : transaction.type === "Bridge" ? "Bridge transfer" : transaction.type === "Send" ? `Sent to ${shortAddress(transaction.address)}` : shortAddress(transaction.address)}
             </p>
           </div>
         </div>
