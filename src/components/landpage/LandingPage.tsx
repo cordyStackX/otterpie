@@ -36,9 +36,9 @@ export default function LandingPage() {
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[42rem] bg-[radial-gradient(ellipse_at_65%_0%,rgba(var(--primary-rgba),0.17),transparent_58%)]" />
 
       <header className="fixed left-1/2 top-3 z-50 mx-auto flex w-[calc(100%-2.5rem)] max-w-7xl -translate-x-1/2 items-center justify-between rounded-full border border-foreground/10 bg-background/85 px-4 py-2.5 shadow-lg shadow-black/10 backdrop-blur-xl transition-all duration-200 hover:border-primary/25 hover:bg-white hover:shadow-xl hover:shadow-black/15 focus-within:border-primary/25 focus-within:bg-white dark:hover:bg-[#0a0a0a] dark:focus-within:bg-[#0a0a0a] sm:w-[calc(100%-4rem)] sm:px-8 lg:w-[calc(100%-6rem)] lg:px-12">
-        <Link href="/" aria-label="Otterpie home" className="group flex items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary/50">
-          <Image src="/logo.svg" alt="" width={44} height={44} priority className="h-11 w-11 rounded-xl bg-primary/10 p-1 transition duration-200 group-hover:scale-105 group-hover:bg-primary/20" />
-          <span className="text-xl font-bold tracking-tight transition-colors group-hover:text-primary">Otterpie<span className="text-primary">.</span></span>
+        <Link href="/" aria-label="Otterpie home" className="group flex shrink-0 items-center gap-2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary/50">
+          <Image src="/logo.svg" alt="" width={44} height={44} priority className="h-9 w-9 rounded-xl bg-primary/10 p-1 transition duration-200 group-hover:scale-105 group-hover:bg-primary/20 sm:h-11 sm:w-11" />
+          <span className="whitespace-nowrap text-lg font-bold tracking-tight transition-colors group-hover:text-primary sm:text-xl">Otterpie<span className="text-primary">.</span></span>
         </Link>
 
         <nav aria-label="Main navigation" className="hidden items-center gap-1 text-sm font-medium text-foreground/65 md:flex">
@@ -50,12 +50,12 @@ export default function LandingPage() {
           <Link href="/privacy" className="rounded-lg px-3 py-2 transition-colors hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">Privacy</Link>
         </nav>
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          <Link href="/auth/login" className="rounded-full px-4 py-2.5 text-sm font-semibold text-foreground/75 transition-all hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-3">
+          <Link href="/auth/login" className="whitespace-nowrap rounded-full px-2 py-2 text-xs font-semibold text-foreground/75 transition-all hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:px-4 sm:py-2.5 sm:text-sm">
             Sign in
           </Link>
-          <Link href="/auth/signup" className="group inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-background shadow-sm shadow-primary/20 transition-all duration-200 hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-md hover:shadow-primary/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:translate-y-0">
-            Get started <span className="transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"><ArrowUpRight /></span>
+          <Link href="/auth/signup" aria-label="Get started" className="group inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-primary px-3 py-2 text-xs font-semibold text-background shadow-sm shadow-primary/20 transition-all duration-200 hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-md hover:shadow-primary/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:translate-y-0 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm">
+            <span className="sm:hidden">Start</span><span className="hidden sm:inline">Get started</span><span className="transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"><ArrowUpRight /></span>
           </Link>
         </div>
       </header>
