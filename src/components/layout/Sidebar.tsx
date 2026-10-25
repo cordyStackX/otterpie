@@ -73,12 +73,17 @@ const BridgeIcon = ({ className }: IconProps) => (
   </svg>
 );
 
-const PaiflowIcon = ({ className }: IconProps) => (
+const TradeIcon = ({ className }: IconProps) => (
   <svg {...iconProps} className={className}>
-    <circle cx="5" cy="6" r="2" />
-    <circle cx="19" cy="6" r="2" />
-    <circle cx="12" cy="18" r="2" />
-    <path d="M7 6h10M6.5 7.5l4.3 8M17.5 7.5l-4.3 8" />
+    <path d="M4 17 9 12l3 3 7-8" />
+    <path d="M14 7h5v5" />
+  </svg>
+);
+
+const AITradeIcon = ({ className }: IconProps) => (
+  <svg {...iconProps} className={className}>
+    <path d="M12 3 14 8l5 2-5 2-2 5-2-5-5-2 5-2 2-5Z" />
+    <path d="m19 15 1 2 2 1-2 1-1 2-1-2-2-1 2-1 1-2Z" />
   </svg>
 );
 
@@ -455,22 +460,29 @@ export default function Sidebar({
               </Link>
             );
           })}
-          {isStellarNetwork ? (
+          {isBotChainNetwork(network) ? (
             <div className="mt-4 border-t border-foreground/10 px-3 pt-4">
               <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/35">Features</p>
-              <Link
-                href="/user/paiflow"
-                aria-current={isActive("/user/paiflow") ? "page" : undefined}
-                className={`group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/40 ${
-                  isActive("/user/paiflow")
-                    ? "bg-primary/10 font-medium text-primary"
-                    : "text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
-                }`}
-              >
-                <span aria-hidden="true" className={`absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary ${isActive("/user/paiflow") ? "opacity-100" : "opacity-0"}`} />
-                <PaiflowIcon className={isActive("/user/paiflow") ? "text-primary" : "text-foreground/40 transition-colors group-hover:text-foreground/70"} />
-                <span>Paiflow</span>
-              </Link>
+              {[
+                { href: "/user/trade", label: "Trade", Icon: TradeIcon },
+                { href: "/user/ai-trade", label: "AI Trade", Icon: AITradeIcon },
+              ].map(({ href, label, Icon }) => {
+                const active = isActive(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    aria-current={active ? "page" : undefined}
+                    className={`group relative mb-1 flex items-center gap-3 rounded-md px-3 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                      active ? "bg-primary/10 font-medium text-primary" : "text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
+                    }`}
+                  >
+                    <span aria-hidden="true" className={`absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary ${active ? "opacity-100" : "opacity-0"}`} />
+                    <Icon className={active ? "text-primary" : "text-foreground/40 transition-colors group-hover:text-foreground/70"} />
+                    <span>{label}</span>
+                  </Link>
+                );
+              })}
             </div>
           ) : null}
         </nav>

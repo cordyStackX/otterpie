@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@next/third-parties": "^16.4.2",
-    "@paiflow/sdk": "^0.1.0",
     "@reown/appkit": "^1.8.24",
     "@stellar/stellar-sdk": "^17.2.1",
     "@supabase/supabase-js": "^2.118.0",

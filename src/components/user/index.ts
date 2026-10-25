@@ -11,6 +11,8 @@ export { default as Categories } from "./Categories";
 
 export { default as Setting } from "./Setting";
 
-export { default as Paiflow } from "./Paiflow";
-
 export { default as Friends } from "./Friends";
+
+export { default as Trade } from "./Trade";
+
+export { default as AITrade } from "./AITrade";
