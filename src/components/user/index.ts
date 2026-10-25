@@ -16,3 +16,5 @@ export { default as Friends } from "./Friends";
 export { default as Trade } from "./Trade";
 
 export { default as AITrade } from "./AITrade";
+
+export { default as NftMarkets } from "./NftMarkets";

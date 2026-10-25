@@ -87,6 +87,14 @@ const AITradeIcon = ({ className }: IconProps) => (
   </svg>
 );
 
+const NftMarketIcon = ({ className }: IconProps) => (
+  <svg {...iconProps} className={className}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <circle cx="9" cy="10" r="2" />
+    <path d="m5 17 4-3 3 2 3-4 4 5" />
+  </svg>
+);
+
 const SettingsIcon = ({ className }: IconProps) => (
   <svg {...iconProps} className={className}>
     <circle cx="12" cy="12" r="3" />
@@ -466,6 +474,7 @@ export default function Sidebar({
               {[
                 { href: "/user/trade", label: "Trade", Icon: TradeIcon },
                 { href: "/user/ai-trade", label: "AI Trade", Icon: AITradeIcon },
+                { href: "/user/nft-markets", label: "NFT PIE Markets", Icon: NftMarketIcon },
               ].map(({ href, label, Icon }) => {
                 const active = isActive(href);
                 return (
