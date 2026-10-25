@@ -10,13 +10,16 @@ export async function PATCH(params: NextRequest) {
 
   try {
     const { email, category, asset } = await params.json();
-    if (asset !== undefined && asset !== "BOT" && asset !== "PIE" && asset !== "XLM" && asset !== "USDC") {
-      return NextResponse.json({ success: false, error: "Choose BOT, PIE, XLM, or USDC categories." }, { status: 400 });
+    if (asset !== undefined && asset !== "BOT" && asset !== "PIE" && asset !== "XLM" && asset !== "USDC" && asset !== "USDT0") {
+      return NextResponse.json({ success: false, error: "Choose BOT, PIE, XLM, USDC, or USDT0 categories." }, { status: 400 });
     }
     if (asset === "USDC" && !("network" in auth && auth.network === "stellar_testnet")) {
       return NextResponse.json({ success: false, error: "USDC categories are only available on Stellar Testnet." }, { status: 400 });
     }
-    const categoryColumn = asset === "PIE" ? "category_pie" : asset === "USDC" ? "category_stellar_usdc" : "category";
+    if (asset === "USDT0" && !("network" in auth && auth.network === "stellar")) {
+      return NextResponse.json({ success: false, error: "USDT0 categories are only available on Stellar Mainnet." }, { status: 400 });
+    }
+    const categoryColumn = asset === "PIE" ? "category_pie" : asset === "USDC" ? "category_stellar_usdc" : asset === "USDT0" ? "category_stellar_usdt0" : "category";
 
     if (typeof email !== "string" || !email || !Array.isArray(category)) {
       return NextResponse.json({ success: false, error: "Invalid Request" }, { status: 400 });

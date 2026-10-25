@@ -12,5 +12,8 @@
   "stellar-transaction" : "/services/supabase/user/stellar_transaction",
   "stellar-testnet-fund" : "/services/supabase/user/stellar_testnet_fund",
   "stellar-testnet-trustline" : "/services/supabase/user/stellar_testnet_trustline",
+  "stellar_paiflow_pay" : "/services/supabase/user/stellar_paiflow_pay",
+  "stellar_paiflow_flows" : "/services/supabase/user/stellar_paiflow_flows",
+  "stellar_balance" : "/services/supabase/user/stellar_balance",
   "friends" : "/services/supabase/user/friends"
 }

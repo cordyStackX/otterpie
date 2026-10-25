@@ -9,7 +9,7 @@ type Transaction = {
   id: string;
   name: string;
   address: string;
-  type: "Receive" | "Withdraw" | "Send" | "Swap" | "Bridge";
+  type: "Receive" | "Withdraw" | "Send" | "Swap" | "Bridge" | "Paiflow";
   status: "Completed" | "Pending" | "Failed";
   amount: number;
   asset: string;
@@ -27,12 +27,12 @@ type TransactionProps = {
   network: string;
 }
 
-type Filter = "All" | "Withdraw" | "Send" | "Receive" | "Swap" | "Bridge";
+type Filter = "All" | "Withdraw" | "Send" | "Receive" | "Swap" | "Bridge" | "Paiflow";
 type TransactionCursors = Record<string, string | null>;
 const EMPTY_TRANSACTION_ASSETS: string[] = [];
 const emptyCursors = (assets: string[] = []): TransactionCursors =>
   Object.fromEntries(assets.map((asset) => [asset, null]));
-const filters: Filter[] = ["All", "Withdraw", "Send", "Receive", "Swap", "Bridge"];
+const filters: Filter[] = ["All", "Withdraw", "Send", "Receive", "Swap", "Bridge", "Paiflow"];
 const skeletonClass = "animate-pulse motion-reduce:animate-none rounded-md bg-foreground/10";
 
 const cardClass = "rounded-xl border border-foreground/10 bg-background";
@@ -51,9 +51,11 @@ const explorerName = (network: string) =>
 export default function Transactions({ email, network } : TransactionProps) {
   const networkConfig = getWalletNetworkConfig(network);
   const transactionAssets = networkConfig?.transactionAssets ?? EMPTY_TRANSACTION_ASSETS;
-  const availableFilters = networkConfig?.family === "bot_chain" || networkConfig?.family === "stellar"
+  const availableFilters = networkConfig?.family === "stellar"
     ? filters
-    : filters.filter((item) => item !== "Bridge");
+    : networkConfig?.family === "bot_chain"
+      ? filters.filter((item) => item !== "Paiflow")
+      : filters.filter((item) => item !== "Bridge" && item !== "Paiflow");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("All");
@@ -135,11 +137,13 @@ export default function Transactions({ email, network } : TransactionProps) {
           sourceType: record.type,
           name: record.type === "swap"
             ? `${record.assetIn ?? record.asset} → ${record.assetOut ?? "token"}`
+            : record.type === "paiflow_deposit" ? record.direction === "received" ? "Paiflow split received" : "Paiflow split deposit"
             : record.type === "bridge_transfer" ? "USDT bridge"
             : shortAddress((record.direction === "received" ? record.from : record.to) ?? "Wallet transfer"),
           address: (record.direction === "received" ? record.from : record.to) ?? "Unknown wallet",
           type: record.type === "swap" ? "Swap" as const
             : record.type === "bridge_candidate" || record.type === "bridge_transfer" ? "Bridge" as const
+            : record.type === "paiflow_deposit" ? "Paiflow" as const
             : record.direction === "received" ? "Receive" as const : "Withdraw" as const,
           status: record.status,
           amount: Number(record.amount),
@@ -279,14 +283,14 @@ export default function Transactions({ email, network } : TransactionProps) {
 
   const query = search.trim().toLowerCase();
   const visibleTransactions = transactions.filter((transaction) =>
-    (filter === "All" || transaction.type === filter) &&
+    (filter === "All" || transaction.type === filter || (filter === "Receive" && transaction.type === "Paiflow" && transaction.direction === "received")) &&
     (!query || [transaction.name, transaction.address, transaction.hash, transaction.status, transaction.asset, transaction.assetIn, transaction.assetOut, transaction.type]
       .filter((value): value is string => Boolean(value))
       .some((value) => value.toLowerCase().includes(query)))
   );
   const completedCount = transactions.filter((t) => t.status === "Completed").length;
   const receivedTotals = transactions.reduce<Record<string, number>>((totals, transaction) => {
-    if (transaction.type === "Receive" && transaction.status === "Completed") {
+    if ((transaction.type === "Receive" || (transaction.type === "Paiflow" && transaction.direction === "received")) && transaction.status === "Completed") {
       totals[transaction.asset] = (totals[transaction.asset] ?? 0) + transaction.amount;
     }
     return totals;
@@ -356,14 +360,14 @@ export default function Transactions({ email, network } : TransactionProps) {
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div role="group" aria-label="Filter transactions" className="flex rounded-lg bg-foreground/5 p-1">
+            <div role="group" aria-label="Filter transactions" className="flex max-w-full shrink-0 flex-nowrap overflow-x-auto overscroll-x-contain rounded-lg bg-foreground/5 p-1 sm:w-fit">
               {availableFilters.map((item) => (
                 <button
                   key={item}
                   type="button"
                   onClick={() => setFilter(item)}
                   aria-pressed={filter === item}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                  className={`shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
                     filter === item ? "bg-background text-foreground shadow-sm" : "text-foreground/55 hover:text-foreground"
                   }`}
                 >
@@ -442,7 +446,7 @@ export default function Transactions({ email, network } : TransactionProps) {
             </div>
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[900px] text-left">
-                <thead className="bg-foreground/[0.025] text-[11px] font-medium uppercase tracking-wide text-foreground/45">
+                <thead className="sticky top-0 z-10 bg-background text-[11px] font-medium uppercase tracking-wide text-foreground/45">
                   <tr>
                     <th className="px-5 py-3">Transaction</th>
                     <th className="px-5 py-3">Date</th>
@@ -457,11 +461,11 @@ export default function Transactions({ email, network } : TransactionProps) {
                     <tr key={transaction.id} className="transition-colors hover:bg-foreground/[0.02]">
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
-                          <DirectionIcon type={transaction.type} />
+                          <DirectionIcon type={transaction.type} direction={transaction.direction} />
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium">{transaction.name}</p>
                             <p className="mt-0.5 font-mono text-xs text-foreground/45">
-                              {transaction.type === "Swap" ? "Swap transaction" : transaction.type === "Bridge" ? "Bridge transfer" : `${transaction.type === "Receive" ? "Received" : transaction.type === "Send" ? "Sent to" : "Sent"} · ${shortAddress(transaction.address)}`}
+                              {transaction.type === "Swap" ? "Swap transaction" : transaction.type === "Bridge" ? "Bridge transfer" : transaction.type === "Paiflow" ? transaction.direction === "received" ? `Paiflow received · ${shortAddress(transaction.address)}` : `Paiflow deposit · ${shortAddress(transaction.address)}` : `${transaction.type === "Receive" ? "Received" : transaction.type === "Send" ? "Sent to" : "Sent"} · ${shortAddress(transaction.address)}`}
                             </p>
                           </div>
                         </div>
@@ -529,11 +533,11 @@ function TransactionCard({ transaction, network }: { transaction: Transaction; n
     <article className="p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <DirectionIcon type={transaction.type} />
+          <DirectionIcon type={transaction.type} direction={transaction.direction} />
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{transaction.name}</p>
             <p className="mt-0.5 font-mono text-xs text-foreground/45">
-              {transaction.type === "Swap" ? "Swap transaction" : transaction.type === "Bridge" ? "Bridge transfer" : transaction.type === "Send" ? `Sent to ${shortAddress(transaction.address)}` : shortAddress(transaction.address)}
+              {transaction.type === "Swap" ? "Swap transaction" : transaction.type === "Bridge" ? "Bridge transfer" : transaction.type === "Paiflow" ? transaction.direction === "received" ? `Paiflow received · ${shortAddress(transaction.address)}` : `Paiflow deposit · ${shortAddress(transaction.address)}` : transaction.type === "Send" ? `Sent to ${shortAddress(transaction.address)}` : shortAddress(transaction.address)}
             </p>
           </div>
         </div>
@@ -584,12 +588,13 @@ function TokenBadge({ transaction, network }: { transaction: Transaction; networ
   );
 }
 
-function DirectionIcon({ type }: { type: Transaction["type"] }) {
-  const received = type === "Receive";
+function DirectionIcon({ type, direction }: { type: Transaction["type"]; direction?: Transaction["direction"] }) {
+  const received = type === "Receive" || (type === "Paiflow" && direction === "received");
   const swapped = type === "Swap";
   const bridged = type === "Bridge";
+  const paiflow = type === "Paiflow";
   return (
-    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${swapped ? "bg-secondary/15 text-secondary" : bridged ? "bg-cyan-500/10 text-cyan-600" : received ? "bg-emerald-500/10 text-emerald-600" : "bg-primary/10 text-primary"}`}>
+    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${swapped ? "bg-secondary/15 text-secondary" : bridged ? "bg-cyan-500/10 text-cyan-600" : paiflow ? "bg-violet-500/10 text-violet-500" : received ? "bg-emerald-500/10 text-emerald-600" : "bg-primary/10 text-primary"}`}>
       <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
         {swapped || bridged ? (
           <path d="M3.5 6h12m0 0-3-3m3 3-3 3M16.5 14h-12m0 0 3 3m-3-3 3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />

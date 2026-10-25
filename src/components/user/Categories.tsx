@@ -16,7 +16,7 @@ type Category = {
 };
 
 type CategoriesProps = { email: string; network: string };
-type CategoryAsset = "BOT" | "PIE" | "XLM" | "USDC";
+type CategoryAsset = "BOT" | "PIE" | "XLM" | "USDC" | "USDT0";
 
 const iconOptions = [
   { name: "Default", path: "/icons/otters/otter-default.svg" },
@@ -62,13 +62,15 @@ export default function Categories({ email, network }: CategoriesProps) {
   const [saving, setSaving] = useState(false);
   const isStellarNetwork = getWalletNetworkConfig(network)?.family === "stellar";
   const isStellarTestnet = network === "stellar_testnet";
-  const categorySymbol = isStellarNetwork ? isStellarTestnet ? categoryAsset : "XLM" : categoryAsset;
+  const categorySymbol = categoryAsset;
 
   useEffect(() => {
     if (!network) return;
     const requestedAsset = new URLSearchParams(window.location.search).get("asset");
     setCategoryAsset(isStellarNetwork
-      ? isStellarTestnet && requestedAsset === "USDC" ? "USDC" : "XLM"
+      ? isStellarTestnet
+        ? requestedAsset === "USDC" ? "USDC" : "XLM"
+        : requestedAsset === "USDT0" ? "USDT0" : "XLM"
       : requestedAsset === "BOT" ? "BOT" : "PIE");
     setAssetReady(true);
   }, [network, isStellarNetwork, isStellarTestnet]);
@@ -227,9 +229,9 @@ export default function Categories({ email, network }: CategoriesProps) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {(isBotChainNetwork(network) || isStellarTestnet) && (
+          {(isBotChainNetwork(network) || isStellarNetwork) && (
             <div role="group" aria-label="Category asset" className="flex rounded-lg bg-foreground/5 p-1">
-              {(isBotChainNetwork(network) ? ["BOT", "PIE"] as const : ["XLM", "USDC"] as const).map((asset) => (
+              {(isBotChainNetwork(network) ? ["BOT", "PIE"] as const : isStellarTestnet ? ["XLM", "USDC"] as const : ["XLM", "USDT0"] as const).map((asset) => (
                 <button
                   key={asset}
                   type="button"

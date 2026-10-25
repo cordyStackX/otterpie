@@ -62,7 +62,7 @@ function hueFromHex(color: string | undefined) {
 type FormatAmount = (value: number) => string;
 
 const makeFormatter = (symbol: string): FormatAmount => {
-  const nf = new Intl.NumberFormat("en-US", { maximumFractionDigits: 7 });
+  const nf = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   return (value: number) => `${nf.format(value)} ${symbol}`.trim();
 };
 
@@ -550,10 +550,11 @@ export default function Dashboard({ email, network }: DashboardProps) {
   const [incoming, setIncoming] = useState<Incoming[]>([]);
   const [historyNotice, setHistoryNotice] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<"BOT" | "PIE">("PIE");
-  const [selectedStellarAsset, setSelectedStellarAsset] = useState<"XLM" | "USDC">("XLM");
+  const [selectedStellarAsset, setSelectedStellarAsset] = useState<"XLM" | "USDC" | "USDT0">("XLM");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const networkConfig = getWalletNetworkConfig(network);
   const isStellarTestnet = network === "stellar_testnet";
+  const isStellarNetwork = networkConfig?.family === "stellar";
   const showCurrentNetwork = networkConfig?.family === "stellar" || networkConfig?.family === "bot_chain";
 
   // Wallet balance (pie chart), formatted by the active network's ticker
@@ -561,7 +562,7 @@ export default function Dashboard({ email, network }: DashboardProps) {
   const [loadingBalance, setLoadingBalance] = useState(true);
   const [loadingTransfers, setLoadingTransfers] = useState(true);
   const activeSymbol = networkConfig
-    ? isStellarTestnet ? selectedStellarAsset : networkConfig.features.pieSwap ? selectedAsset : networkConfig.nativeAsset
+    ? isStellarNetwork ? selectedStellarAsset : networkConfig.features.pieSwap ? selectedAsset : networkConfig.nativeAsset
     : "";
   const formatAmount = useMemo(() => makeFormatter(activeSymbol), [activeSymbol]);
 
@@ -598,6 +599,10 @@ export default function Dashboard({ email, network }: DashboardProps) {
   const transferData = useMemo(() => buildTransfers(incoming, range), [incoming, range]);
   const receivedTotal = round7(transferData.reduce((sum, d) => sum + d.amount, 0));
   const receivedAverage = Math.round((receivedTotal / transferData.length) * 100) / 100;
+
+  useEffect(() => {
+    setSelectedStellarAsset("XLM");
+  }, [network]);
 
   // Category rules come from the database (jsonb column)
   useEffect(() => {
@@ -923,21 +928,23 @@ export default function Dashboard({ email, network }: DashboardProps) {
                 <span className="truncate">Switch to {isPieSelected ? "BOT Chain" : "PIE"}</span>
               </button>
             )}
-            {isStellarTestnet && (
+            {isStellarNetwork && (
               <button
                 type="button"
                 onClick={() => {
                   setSelected(null);
                   setPage(1);
-                  setSelectedStellarAsset(selectedStellarAsset === "XLM" ? "USDC" : "XLM");
+                  setSelectedStellarAsset(selectedStellarAsset === "XLM"
+                    ? isStellarTestnet ? "USDC" : "USDT0"
+                    : "XLM");
                 }}
-                aria-label={`Switch to ${selectedStellarAsset === "XLM" ? "USDC" : "XLM"}`}
+                aria-label={`Switch to ${selectedStellarAsset === "XLM" ? isStellarTestnet ? "USDC" : "USDT0" : "XLM"}`}
                 className="flex w-full items-center justify-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-2 py-2 text-xs font-semibold text-primary outline-none transition-colors hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-primary/40"
               >
                 <svg aria-hidden="true" className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="m7 4 4 4-4 4M11 8H3m10 8h8m-4-4 4 4-4 4" />
                 </svg>
-                <span className="truncate">Switch to {selectedStellarAsset === "XLM" ? "USDC" : "XLM"}</span>
+                <span className="truncate">Switch to {selectedStellarAsset === "XLM" ? isStellarTestnet ? "USDC" : "USDT0" : "XLM"}</span>
               </button>
             )}
             <div className="flex w-full gap-2">

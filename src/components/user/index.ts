@@ -18,3 +18,8 @@ export { default as Trade } from "./Trade";
 export { default as AITrade } from "./AITrade";
 
 export { default as NftMarkets } from "./NftMarkets";
+export { default as StellarFeature } from "./StellarFeature";
+export { default as P2P } from "./P2P";
+export { default as StellarP2P } from "./StellarP2P";
+
+export { default as Paiflow } from "./Paiflow";

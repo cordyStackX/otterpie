@@ -80,6 +80,14 @@ const TradeIcon = ({ className }: IconProps) => (
   </svg>
 );
 
+const P2PIcon = ({ className }: IconProps) => (
+  <svg {...iconProps} className={className}>
+    <circle cx="6" cy="7" r="2.5" />
+    <circle cx="18" cy="17" r="2.5" />
+    <path d="M8.2 8.4 15.8 15.6M14 7h4v4M6 13v4h4" />
+  </svg>
+);
+
 const AITradeIcon = ({ className }: IconProps) => (
   <svg {...iconProps} className={className}>
     <path d="M12 3 14 8l5 2-5 2-2 5-2-5-5-2 5-2 2-5Z" />
@@ -92,6 +100,15 @@ const NftMarketIcon = ({ className }: IconProps) => (
     <rect x="3" y="4" width="18" height="16" rx="2" />
     <circle cx="9" cy="10" r="2" />
     <path d="m5 17 4-3 3 2 3-4 4 5" />
+  </svg>
+);
+
+const PaiflowIcon = ({ className }: IconProps) => (
+  <svg {...iconProps} className={className}>
+    <circle cx="5" cy="6" r="2" />
+    <circle cx="19" cy="6" r="2" />
+    <circle cx="12" cy="18" r="2" />
+    <path d="M7 6h10M6.5 7.5l4.3 8M17.5 7.5l-4.3 8" />
   </svg>
 );
 
@@ -468,13 +485,39 @@ export default function Sidebar({
               </Link>
             );
           })}
-          {isBotChainNetwork(network) ? (
+          {isStellarNetwork || isBotChainNetwork(network) ? (
             <div className="mt-4 border-t border-foreground/10 px-3 pt-4">
               <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/35">Features</p>
-              {[
+              {isStellarNetwork && (
+                [
+                  { href: "/user/paiflow", label: "Paiflow", Icon: PaiflowIcon },
+                  { href: "/user/stellar-trade", label: "Trade", Icon: TradeIcon },
+                  { href: "/user/stellar-ai-trade", label: "AI Trade", Icon: AITradeIcon },
+                  { href: "/user/stellar-nft-markets", label: "XLM NFT Market", Icon: NftMarketIcon },
+                  { href: "/user/stellar-p2p", label: "P2P", Icon: P2PIcon },
+                ].map(({ href, label, Icon }) => {
+                  const active = isActive(href);
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      aria-current={active ? "page" : undefined}
+                      className={`group relative mb-1 flex items-center gap-3 rounded-md px-3 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                        active ? "bg-primary/10 font-medium text-primary" : "text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
+                      }`}
+                    >
+                      <span aria-hidden="true" className={`absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary ${active ? "opacity-100" : "opacity-0"}`} />
+                      <Icon className={active ? "text-primary" : "text-foreground/40 transition-colors group-hover:text-foreground/70"} />
+                      <span>{label}</span>
+                    </Link>
+                  );
+                })
+              )}
+              {isBotChainNetwork(network) && [
                 { href: "/user/trade", label: "Trade", Icon: TradeIcon },
                 { href: "/user/ai-trade", label: "AI Trade", Icon: AITradeIcon },
                 { href: "/user/nft-markets", label: "NFT PIE Markets", Icon: NftMarketIcon },
+                { href: "/user/p2p", label: "P2P", Icon: P2PIcon },
               ].map(({ href, label, Icon }) => {
                 const active = isActive(href);
                 return (

@@ -35,28 +35,32 @@ export default function LandingPage() {
     <main className="relative isolate overflow-hidden bg-background text-foreground">
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[42rem] bg-[radial-gradient(ellipse_at_65%_0%,rgba(var(--primary-rgba),0.17),transparent_58%)]" />
 
-      <header className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 sm:px-8 lg:px-12">
-        <Link href="/" aria-label="Otterpie home" className="flex items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary/50">
-          <Image src="/logo.svg" alt="" width={44} height={44} priority className="h-11 w-11 rounded-xl bg-primary/10 p-1" />
-          <span className="text-xl font-bold tracking-tight">Otterpie<span className="text-primary">.</span></span>
+      <header className="fixed left-1/2 top-3 z-50 mx-auto flex w-[calc(100%-2.5rem)] max-w-7xl -translate-x-1/2 items-center justify-between rounded-full border border-foreground/10 bg-background/85 px-4 py-2.5 shadow-lg shadow-black/10 backdrop-blur-xl transition-all duration-200 hover:border-primary/25 hover:bg-white hover:shadow-xl hover:shadow-black/15 focus-within:border-primary/25 focus-within:bg-white dark:hover:bg-[#0a0a0a] dark:focus-within:bg-[#0a0a0a] sm:w-[calc(100%-4rem)] sm:px-8 lg:w-[calc(100%-6rem)] lg:px-12">
+        <Link href="/" aria-label="Otterpie home" className="group flex items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary/50">
+          <Image src="/logo.svg" alt="" width={44} height={44} priority className="h-11 w-11 rounded-xl bg-primary/10 p-1 transition duration-200 group-hover:scale-105 group-hover:bg-primary/20" />
+          <span className="text-xl font-bold tracking-tight transition-colors group-hover:text-primary">Otterpie<span className="text-primary">.</span></span>
         </Link>
 
-        <nav aria-label="Main navigation" className="hidden items-center gap-8 text-sm font-medium text-foreground/65 md:flex">
-          <a href="#how-it-works" className="transition-colors hover:text-foreground">How it works</a>
-          <a href="#flexible-plans" className="transition-colors hover:text-foreground">Your plans</a>
-          <Link href="/terms" className="transition-colors hover:text-foreground">Terms</Link>
-          <Link href="/privacy" className="transition-colors hover:text-foreground">Privacy</Link>
+        <nav aria-label="Main navigation" className="hidden items-center gap-1 text-sm font-medium text-foreground/65 md:flex">
+          <a href="#stellar-paiflow" className="rounded-lg px-3 py-2 transition-colors hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">Paiflow</a>
+          <a href="#how-it-works" className="rounded-lg px-3 py-2 transition-colors hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">How it works</a>
+          <a href="#flexible-plans" className="rounded-lg px-3 py-2 transition-colors hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">Your plans</a>
+          <a href="#roadmap" className="rounded-lg px-3 py-2 transition-colors hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">Roadmap</a>
+          <Link href="/terms" className="rounded-lg px-3 py-2 transition-colors hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">Terms</Link>
+          <Link href="/privacy" className="rounded-lg px-3 py-2 transition-colors hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">Privacy</Link>
         </nav>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <Link href="/auth/login" className="rounded-lg px-3 py-2 text-sm font-semibold text-foreground/75 transition-colors hover:bg-foreground/5 hover:text-foreground sm:px-4">
+          <Link href="/auth/login" className="rounded-full px-4 py-2.5 text-sm font-semibold text-foreground/75 transition-all hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
             Sign in
           </Link>
-          <Link href="/auth/signup" className="inline-flex items-center gap-2 rounded-lg bg-primary px-3.5 py-2.5 text-sm font-semibold text-background shadow-sm shadow-primary/20 transition hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:px-4">
-            Get started <ArrowUpRight />
+          <Link href="/auth/signup" className="group inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-background shadow-sm shadow-primary/20 transition-all duration-200 hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-md hover:shadow-primary/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:translate-y-0">
+            Get started <span className="transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"><ArrowUpRight /></span>
           </Link>
         </div>
       </header>
+
+      <div aria-hidden="true" className="h-20" />
 
       <section className="relative mx-auto grid w-full max-w-7xl items-center gap-12 px-5 pb-20 pt-12 sm:px-8 sm:pb-28 sm:pt-16 lg:grid-cols-[1fr_0.95fr] lg:gap-16 lg:px-12 lg:pb-32 lg:pt-20">
         <div className="relative z-10 max-w-2xl">
@@ -176,6 +180,61 @@ export default function LandingPage() {
         </div>
       </section>
 
+      <section id="stellar-paiflow" aria-labelledby="stellar-paiflow-title" className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="text-sm font-semibold text-primary">Stellar Testnet · Paiflow</p>
+          <h2 id="stellar-paiflow-title" className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">One USDC payment. A configured split.</h2>
+          <p className="mt-4 text-sm leading-6 text-foreground/60 sm:text-base">
+            Otterpie prepares and signs the deposit with your Stellar wallet. Paiflow runs the recipients and split rules already set in your flow.
+          </p>
+        </div>
+
+        <div className="mt-10 overflow-x-auto rounded-3xl border border-foreground/10 bg-foreground/[0.025] p-4 sm:p-6">
+          <svg role="img" aria-labelledby="paiflow-diagram-title paiflow-diagram-description" viewBox="0 0 1080 220" className="mx-auto block h-auto min-w-[820px] w-full max-w-6xl">
+            <title id="paiflow-diagram-title">Otterpie and Paiflow Stellar Testnet payment flow</title>
+            <desc id="paiflow-diagram-description">You confirm a USDC payment in Otterpie. Otterpie prepares and signs it with your Stellar wallet. Stellar Testnet records the deposit. Paiflow distributes it to recipients configured in the flow.</desc>
+            <defs>
+              <marker id="paiflow-arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                <path d="M0 0 8 4 0 8" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              </marker>
+            </defs>
+            <g fill="none" stroke="currentColor" strokeWidth="2" className="text-primary/70">
+              <path d="M238 110h30" markerEnd="url(#paiflow-arrow)" />
+              <path d="M508 110h30" markerEnd="url(#paiflow-arrow)" />
+              <path d="M778 110h30" markerEnd="url(#paiflow-arrow)" />
+            </g>
+            <g>
+              <rect x="8" y="42" width="230" height="136" rx="22" className="fill-background stroke-foreground/15" />
+              <circle cx="40" cy="77" r="16" className="fill-primary/15" />
+              <text x="40" y="82" textAnchor="middle" className="fill-primary text-[13px] font-bold">1</text>
+              <text x="30" y="119" className="fill-foreground text-[16px] font-semibold">You confirm</text>
+              <text x="30" y="145" className="fill-foreground/60 text-[13px]">USDC amount + saved flow</text>
+
+              <rect x="278" y="42" width="230" height="136" rx="22" className="fill-background stroke-foreground/15" />
+              <circle cx="310" cy="77" r="16" className="fill-primary/15" />
+              <text x="310" y="82" textAnchor="middle" className="fill-primary text-[13px] font-bold">2</text>
+              <text x="300" y="119" className="fill-foreground text-[16px] font-semibold">Otterpie signs</text>
+              <text x="300" y="145" className="fill-foreground/60 text-[13px]">Your Stellar wallet · XLM fee</text>
+
+              <rect x="548" y="42" width="230" height="136" rx="22" className="fill-background stroke-foreground/15" />
+              <circle cx="580" cy="77" r="16" className="fill-primary/15" />
+              <text x="580" y="82" textAnchor="middle" className="fill-primary text-[13px] font-bold">3</text>
+              <text x="570" y="119" className="fill-foreground text-[16px] font-semibold">Stellar Testnet</text>
+              <text x="570" y="145" className="fill-foreground/60 text-[13px]">USDC deposit is recorded</text>
+
+              <rect x="818" y="42" width="254" height="136" rx="22" className="fill-background stroke-foreground/15" />
+              <circle cx="850" cy="77" r="16" className="fill-primary/15" />
+              <text x="850" y="82" textAnchor="middle" className="fill-primary text-[13px] font-bold">4</text>
+              <text x="840" y="119" className="fill-foreground text-[16px] font-semibold">Paiflow distributes</text>
+              <text x="840" y="145" className="fill-foreground/60 text-[13px]">To recipients in the flow</text>
+            </g>
+          </svg>
+        </div>
+        <p className="mx-auto mt-4 max-w-4xl text-center text-xs leading-5 text-foreground/45">
+          Testnet only. XLM covers Stellar network fees; USDC is the deposited asset. Otterpie cannot change a deployment’s recipients or split rules. Testnet assets have no intended real-world value.
+        </p>
+      </section>
+
       <section id="how-it-works" className="border-y border-foreground/8 bg-foreground/[0.025]">
         <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
           <div className="max-w-2xl">
@@ -205,22 +264,23 @@ export default function LandingPage() {
           <div aria-hidden="true" className="absolute -right-8 -top-8 h-40 w-40 rounded-full border border-primary/15" />
           <div aria-hidden="true" className="absolute -right-1 top-0 h-28 w-28 rounded-full border border-primary/15" />
           <div className="relative max-w-sm">
-            <span className="inline-flex rounded-full bg-background px-3 py-1 text-xs font-semibold text-primary shadow-sm">Made to fit your plans</span>
-            <h2 className="mt-5 text-3xl font-semibold leading-tight tracking-tight">Give every part of your money a purpose.</h2>
-            <p className="mt-4 text-sm leading-7 text-foreground/65">Set up categories that match the way you manage your money, then keep balances and activity easy to review.</p>
+            <span className="inline-flex rounded-full bg-background px-3 py-1 text-xs font-semibold text-primary shadow-sm">Plans for each asset</span>
+            <h2 className="mt-5 text-3xl font-semibold leading-tight tracking-tight">Give every balance a plan.</h2>
+            <p className="mt-4 text-sm leading-7 text-foreground/65">Make categories for goals like savings, rent, or trading. Set a share and an optional target, then see how the plan compares with your current balance.</p>
+            <p className="mt-4 text-xs leading-5 text-foreground/45">Categories are a planning view. Your funds stay in the wallet and are not moved or locked.</p>
             <Image src="/icons/otters/otter-supplier.svg" alt="" width={160} height={160} className="mt-5 h-32 w-32 object-contain" />
           </div>
         </div>
 
         <div>
-          <p className="text-sm font-semibold text-primary">Small details, less mental math</p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">A calmer view of your wallet.</h2>
+          <p className="text-sm font-semibold text-primary">Plan by asset and network</p>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Your categories follow the balance you’re viewing.</h2>
           <ul className="mt-7 space-y-4">
             {[
-              "Choose categories and percentages for goals like trading, savings, rent, or spending.",
-              "See how your planned category amounts relate to your wallet balance.",
-              "Review recent activity and find transactions across supported networks.",
-              "Keep your wallet details and payment QR together in one place.",
+              "Set a percentage and optional target for each category; the dashboard estimates its share from your current balance.",
+              "Keep plans separate for assets such as BOT, PIE, Stellar Testnet USDC, and Stellar Mainnet USDT0.",
+              "Switch Stellar between Mainnet and Testnet to view the matching balances, activity, and category plans.",
+              "Use a Stellar Testnet USDC category as a budgeting guide when funding a saved Paiflow split.",
             ].map((item) => (
               <li key={item} className="flex items-start gap-3 text-sm leading-6 text-foreground/65">
                 <CheckMark /> <span>{item}</span>
@@ -230,6 +290,58 @@ export default function LandingPage() {
           <Link href="/auth/signup" className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline">
             Create your wallet <ArrowUpRight />
           </Link>
+        </div>
+      </section>
+
+      <section id="roadmap" aria-labelledby="roadmap-title" className="border-y border-foreground/8 bg-foreground/[0.025]">
+        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="text-sm font-semibold text-primary">What’s here and what’s next</p>
+            <h2 id="roadmap-title" className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Built so far. Still building.</h2>
+            <p className="mt-4 text-sm leading-6 text-foreground/60 sm:text-base">Explore the wallet tools already available, then see what we’re developing for BOT Chain and Stellar.</p>
+          </div>
+
+          <div className="mt-10">
+            <div className="mb-4 flex items-center gap-3">
+              <h3 className="text-lg font-semibold">Available now</h3>
+              <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">Ready to use</span>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                { title: "Wallet dashboard", description: "View balances, recent activity, and transaction details across supported networks." },
+                { title: "Category plans", description: "Set percentage shares and goals for supported assets. Funds stay in your wallet." },
+                { title: "Transfers and Friends", description: "Send supported assets to compatible BOT Chain or Stellar wallets, including saved Otterpie friends." },
+                { title: "Swaps and bridges", description: "Use supported BOT Chain swaps and USDT routes, plus configured Stellar Mainnet USDT0 tools." },
+                { title: "Stellar Testnet", description: "Switch your Stellar wallet to Testnet, request test XLM, and set up a test USDC trustline." },
+                { title: "Paiflow on Testnet", description: "Save and fund up to five eligible USDC split deployments using your Stellar Testnet wallet." },
+              ].map((feature) => (
+                <article key={feature.title} className="rounded-2xl border border-foreground/10 bg-background p-5 sm:p-6">
+                  <h4 className="font-semibold tracking-tight">{feature.title}</h4>
+                  <p className="mt-2 text-sm leading-6 text-foreground/60">{feature.description}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-10">
+            <h3 className="mb-4 text-lg font-semibold">In development</h3>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { title: "Trade", network: "BOT Chain + Stellar", description: "Trading tools for assets on each supported network." },
+              { title: "AI Trade", network: "BOT Chain + Stellar", description: "AI-assisted trading tools with clear controls and transaction review." },
+              { title: "NFT Markets", network: "PIE Markets + XLM", description: "Explore NFT market features for the BOT Chain and Stellar communities." },
+              { title: "P2P", network: "BOT Chain + Stellar", description: "Peer-to-peer offers with terms and settlement details to review." },
+            ].map((feature) => (
+              <article key={feature.title} className="rounded-2xl border border-foreground/10 bg-background p-5 sm:p-6">
+                <span className="inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">In development</span>
+                <h3 className="mt-4 text-lg font-semibold tracking-tight">{feature.title}</h3>
+                <p className="mt-1 text-xs font-medium text-foreground/45">{feature.network}</p>
+                <p className="mt-3 text-sm leading-6 text-foreground/60">{feature.description}</p>
+              </article>
+            ))}
+            </div>
+          </div>
+          <p className="mt-5 text-center text-xs text-foreground/40">Plans may change as we build and test each feature.</p>
         </div>
       </section>
 

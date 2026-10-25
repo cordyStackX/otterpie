@@ -1,7 +1,7 @@
 # Otterpie
 
 **A wallet that shows where the money goes.**
-An adaptable wallet to track balances, understand transactions, and organize funds around your goals. Available on Stellar and BOT Chain mainnets.
+Otterpie combines wallet balances and activity with category planning, friends, and network-specific tools. It supports BOT Chain Mainnet, Stellar Mainnet, and an opt-in Stellar Testnet mode.
 
 > **Early alpha:** Otterpie is experimental and may change, be unavailable, or show incomplete information. Mainnet swaps, withdrawals, and bridge transfers move real assets and may incur network or bridge fees. Start with amounts you can afford to lose, and check every network, token, amount, and address before approving a transaction.
 
@@ -18,13 +18,15 @@ Money often has different purposes: saving for a goal, setting aside rent, manag
 
 ## What Otterpie does
 
-Otterpie gives each user a wallet on their selected network: Stellar or BOT Chain. Users can check their balance, review incoming and outgoing transactions, and organize funds across **categories they define themselves** — such as trading, savings, rent, bills, or everyday spending. Each category shows its percentage of the current wallet balance, with any unassigned share kept visible. These categories are a tracking view; funds remain in the same wallet.
+Users can check balances, review transactions, send supported assets, and organize funds into **categories they define themselves**. Categories show planned shares and goals; they do not move or lock funds. The dashboard and category view follow the selected network and asset.
 
-On BOT Chain, Otterpie also supports swaps among BOT, PIE, and USDT, plus USDT bridge transfers between BOT Chain and Ethereum, BNB Smart Chain, and Tron. External-network inbound transfers use WalletConnect for EVM wallets or TronLink for Tron. Stellar wallet viewing and transfers are supported, but Stellar is not part of the bridge flow.
+BOT Chain supports swaps among BOT, PIE, and USDT, plus configured USDT bridge routes. Stellar Mainnet supports XLM and USDT0, Stellar swaps, and a configured USDT0 bridge flow. Stellar Testnet reuses the account's Stellar address and key, but its balances, trustlines, and transactions are separate from Mainnet; it supports test XLM and test USDC. Paiflow integration is currently limited to Stellar Testnet. Friends can discover other Otterpie accounts by email and send supported assets when the wallets are on compatible networks.
+
+The Trade, AI Trade, NFT Market, and P2P pages currently shown under **Features** are under development and do not yet provide those services. Paiflow is available only in the Stellar section.
 
 The goal is a clearer picture of your money: what came in, what went out, how much is available, and how funds are set aside for different plans.
 
-Built for **Stellar Mainnet** and **BOT Chain Mainnet**. Each user selects a network during signup and gets a wallet for that network. Stellar wallets use the Stellar SDK; BOT Chain wallets use EVM-compatible tooling. Wallet activity is tracked against the user's custom categories.
+BOT Chain and Stellar wallets use different address formats and signing systems. Stellar Testnet is a network selection for an existing Stellar wallet, not a separately generated account. The Settings page can switch the Stellar wallet between Mainnet and Testnet; always check the selected network before signing. Categories are stored separately by asset/network, including PIE, Stellar Testnet USDC, and Stellar Mainnet USDT0.
 
 ### Wallet and transaction model
 
@@ -36,11 +38,20 @@ Bridge completion can take time and depends on the bridge contracts, validators,
 
 | Network | Environment | Wallet support |
 |---|---|---|
-| Stellar | Mainnet (`horizon.stellar.org`) | Generated wallet, balances, and activity; bridging not supported |
-| BOT Chain | Mainnet (Chain ID `677`) | Generated EVM-compatible wallet, balances, activity, swaps, and USDT bridge |
+| Stellar | Mainnet (`horizon.stellar.org`) | Stellar wallet, XLM and USDT0, balances, activity, swaps, and configured USDT0 bridge |
+| Stellar | Testnet (`horizon-testnet.stellar.org`) | Same Stellar address/key as Mainnet; separate test balances, XLM, USDC, swaps, and Paiflow; no bridge |
+| BOT Chain | Mainnet (Chain ID `677`) | Generated EVM-compatible wallet, BOT/PIE/USDT balances, activity, swaps, and configured USDT bridge |
 | Ethereum | Mainnet (Chain ID `1`) | External EVM wallet for USDT bridging |
 | BNB Smart Chain | Mainnet (Chain ID `56`) | External EVM wallet for USDT bridging |
 | Tron | Mainnet | External TronLink wallet for USDT bridging |
+
+Bridge availability depends on the selected source and destination route shown in the app. Stellar Testnet is not bridged. Testnet assets have no intended real-world value; Friendbot funds test XLM only.
+
+### Friends, categories, and Paiflow
+
+- **Friends:** Add a confirmed Otterpie account by email, view its public wallet address, search the friend list, and send supported assets when the two accounts use compatible networks. Transfers are on-chain transactions and require password confirmation.
+- **Categories:** Category allocations are planning data stored separately from funds. The Supabase `categories` table needs JSONB columns used by the selected assets, including `category_pie`, `category_stellar_usdc`, and `category_stellar_usdt0` in addition to the default `category` column. Ensure these columns exist in your Supabase schema before enabling the corresponding category views.
+- **Paiflow:** On Stellar Testnet, a user may save up to five eligible Paiflow deployment IDs with their single-deployment API tokens. Otterpie validates the deployment, encrypts its credentials at rest, prepares an execution through the Paiflow SDK, and signs with the user's stored Stellar wallet after password confirmation. Only Testnet USDC deposit flows with Execute support are accepted. A flow's recipients and distribution logic are configured in Paiflow; Otterpie does not edit them. No shared-flow code feature is provided.
 
 ---
 
@@ -179,7 +190,7 @@ pnpm dev
 - Improve alpha reliability and transaction status visibility across swaps and bridge transfers.
 - Continue refining the wallet and bridge experience based on alpha feedback.
 
-Features, networks, fees, and availability may change during alpha. Swaps and bridge transfers depend on live liquidity, contract state, and third-party networks; displayed prices and balances may be delayed or incomplete. Review the current quote and contract details before signing. Stellar is not supported for bridging.
+Features, networks, fees, and availability may change during alpha. Swaps and bridge transfers depend on liquidity, contract state, and third-party networks; displayed prices and balances may be delayed or incomplete. Review the current quote, route, network, and recipient before signing. Stellar Mainnet bridge support is limited to the configured USDT0 route; Stellar Testnet is not supported for bridging.
 
 For the bridge provider's current fees, minimums, and contract details, see the [official BOT Chain bridge documentation](https://dev-docs.botchain.ai/docs/Bridge/fees/).
 

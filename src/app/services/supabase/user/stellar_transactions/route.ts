@@ -38,6 +38,7 @@ export async function POST(params: NextRequest) {
   const isTestnet = "network" in auth && auth.network === "stellar_testnet";
   const stellarConfig = walletNetworks.stellar;
   const usdt0 = stellarConfig.tokens.USDT0.classicAsset;
+  const testnetUsdc = walletNetworks.stellar_testnet.tokens.USDC.classicAsset;
   const server = new Horizon.Server(isTestnet
     ? walletNetworks.stellar_testnet.swapConfig.horizonUrl
     : (process.env.STELLAR_HORIZON_URL || stellarConfig.swapConfig.horizonUrl));
@@ -124,11 +125,43 @@ export async function POST(params: NextRequest) {
           continue;
         }
 
-        // Soroban USDT0 OFT activity is exposed as an invoke-host-function
-        // payment record with SAC balance changes. Tag only burns from this
-        // wallet, transfers into the configured OFT, and mints to this wallet.
-        if (!isTestnet && r.type === "invoke_host_function" && Array.isArray(r.asset_balance_changes)) {
+        // Stellar contract deposits can show up as invoke-host-function
+        // payment records, rather than classic payment operations.
+        if (r.type === "invoke_host_function" && Array.isArray(r.asset_balance_changes)) {
           const changes = r.asset_balance_changes as Array<Record<string, unknown>>;
+          if (isTestnet) {
+            const movement = changes.find((change) => {
+              if (change.asset_type !== "credit_alphanum4" && change.asset_type !== "credit_alphanum12") return false;
+              if (change.asset_code !== testnetUsdc.code || change.asset_issuer !== testnetUsdc.issuer) return false;
+              return (change.type === "transfer" && (change.from === address || change.to === address)) ||
+                (change.type === "mint" && change.to === address) ||
+                (change.type === "burn" && change.from === address);
+            });
+            if (movement && typeof movement.amount === "string") {
+              const direction = movement.to === address || movement.type === "mint" ? "received" : "sent";
+              appendTransaction({
+                id: r.id,
+                hash: r.transaction_hash ?? r.id,
+                date: r.created_at,
+                amount: movement.amount,
+                asset: testnetUsdc.code,
+                from: typeof movement.from === "string" ? movement.from : null,
+                to: typeof movement.to === "string" ? movement.to : null,
+                direction,
+                type: "paiflow_deposit",
+                status: "Completed",
+              });
+              if (transactions.length >= TRANSACTION_PAGE_SIZE) {
+                hasMore = recordIndex < page.records.length - 1 || page.records.length === HORIZON_PAGE_SIZE;
+                break;
+              }
+            }
+            continue;
+          }
+
+          // Soroban USDT0 OFT activity is exposed as an invoke-host-function
+          // payment record with SAC balance changes. Tag only burns from this
+          // wallet, transfers into the configured OFT, and mints to this wallet.
           const bridgeChange = changes.find((change) => {
             if (change.asset_type !== "credit_alphanum4" && change.asset_type !== "credit_alphanum12") return false;
             if (change.asset_code !== usdt0.code || change.asset_issuer !== usdt0.issuer) return false;
